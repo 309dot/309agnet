@@ -1014,8 +1014,14 @@ export default function App() {
                 });
               }
 
+              const showProgress =
+                sessionActivelyRunning ||
+                phase === "needs_approval" ||
+                phase === "needs_user" ||
+                pendingContinue;
+
               return {
-                visible: true,
+                visible: showProgress,
                 label,
                 spinning: running && runningThisSession,
                 notice: notice || "",

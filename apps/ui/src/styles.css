@@ -1808,20 +1808,6 @@ button.ghost {
   min-width: 0;
 }
 
-.agent-progress-texts {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-width: 0;
-}
-
-.agent-progress-topline {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
 .agent-progress-text {
   font-size: 12px;
   line-height: 20px;
@@ -1871,8 +1857,20 @@ button.ghost {
 .agent-progress-right {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex: 0 0 auto;
+}
+
+.agent-progress-status-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-progress-leds {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .agent-progress-note {

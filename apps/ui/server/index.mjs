@@ -67,6 +67,7 @@ const OPENCLAW_STATE_DIR =
   "/Users/a309/Documents/Agent309/wOpenclaw/.openclaw-state";
 const OPENCLAW_LOG_DIR = process.env.OPENCLAW_LOG_DIR ?? "/tmp/openclaw";
 const MCP_CONFIG_PATH = process.env.MCP_CONFIG_PATH ?? path.join(WORKSPACE, "mcp.json");
+const OLLAMA_API_BASE = process.env.OLLAMA_API_BASE ?? "http://127.0.0.1:11434";
 
 const DEFAULT_MCP_CONFIG = {
   servers: {
@@ -1900,6 +1901,42 @@ const buildAskPrompt = ({ request, contextPrefix }) => {
   return `${contextPrefix || ""}너는 로컬 309Agent(=OpenClaw)다.\n\n규칙:\n- 반드시 한국어로만 답한다.\n- tool을 사용하지 않는다.\n- 짧고 명확하게 답한다.\n- 파일을 열겠다/수정하겠다/실행하겠다 같은 \"실행을 암시하는 표현\"은 금지한다. (ask 모드는 설명/요약만)\n- 만약 컨텍스트에 RAG_WEB_CONTEXT가 포함되어 있다면, 반드시 그 근거를 기반으로 답한다. (\"직접 방문해야\" 같은 회피 금지)\n- 입력에 Figma 링크가 있고 FIGMA_MCP_CONTEXT가 주어지면, 그 컨텍스트를 근거로 답하라(“못 한다”로 회피하지 말 것).\n\n요청:\n${request}`;
 };
 
+const askDirectFromOllama = async ({ modelId, request }) => {
+  const model = String(modelId ?? "").trim() || AGENT_MODELS.ask;
+  const prompt = String(request ?? "").trim();
+  if (!prompt) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 25000);
+  try {
+    const resp = await fetch(`${OLLAMA_API_BASE}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        stream: false,
+        messages: [
+          {
+            role: "system",
+            content:
+              "너는 한국어로 짧고 명확하게 답하는 로컬 비서다. 실행/수정을 암시하지 말고, 질문에 바로 답한다."
+          },
+          { role: "user", content: prompt }
+        ],
+        options: { num_ctx: 4096, temperature: 0.4 }
+      })
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json().catch(() => null);
+    const text = String(data?.message?.content ?? "").trim();
+    return text || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const buildActPrompt = ({ request, plan, approvals, permission, contextPrefix }) => {
   const approvalText = formatApprovals(approvals);
   const perm = normalizePermission(permission);
@@ -2040,13 +2077,10 @@ const startRun = async ({ prompt, modelId, kind, sessionId, preserveSessionState
     if (!cfg?.agents?.defaults) return null;
     cfg.agents.defaults.model = cfg.agents.defaults.model ?? {};
     cfg.agents.defaults.model.primary = `ollama/${modelId}`;
-    // Ask-mode should not depend on Docker sandbox availability.
-    // If Docker Desktop is down, ask runs must still answer via local model.
-    if (kind === "ask") {
-      cfg.agents.defaults.sandbox = cfg.agents.defaults.sandbox ?? {};
-      cfg.agents.defaults.sandbox.mode = "off";
-      cfg.agents.defaults.sandbox.workspaceAccess = "rw";
-    }
+    // UI runtime should not hard-depend on Docker sandbox availability.
+    cfg.agents.defaults.sandbox = cfg.agents.defaults.sandbox ?? {};
+    cfg.agents.defaults.sandbox.mode = "off";
+    cfg.agents.defaults.sandbox.workspaceAccess = "rw";
     // Write an ephemeral config for this run. Do NOT redact gateway tokens here, or Gateway auth may break.
     // The file is stored under DATA_DIR/tmp and is deleted on run completion.
     const tempPath = path.join(TMP_DIR, `${id}.openclaw.json`);
@@ -3777,6 +3811,52 @@ app.post("/api/chat/send", async (req, res) => {
     const { text: rewrittenPrompt, rewritten } = rewriteWorkspacePaths(message);
 
     if (agentMode === "ask") {
+      const direct = await askDirectFromOllama({
+        modelId: effectiveModel,
+        request: rewrittenPrompt
+      });
+      if (direct) {
+        await appendMessage(sessionId, {
+          role: "assistant",
+          kind: "assistant",
+          text: direct
+        });
+        await updateSession(sessionId, (s) => {
+          const n = normalizeSession(s);
+          const history = [
+            ...(n.history ?? []),
+            ensureHistoryEntry({
+              type: "ask",
+              runId: null,
+              status: "success",
+              summary: toOneLine(direct, 160),
+              detail: direct,
+              execution_summary: buildExecutionSummary({
+                worldChange: { filesCreated: [], filesModified: [], filesDeleted: [] },
+                result: "success",
+                commandsExecuted: [],
+                testsExecuted: [],
+                nextSuggestedActions: []
+              })
+            })
+          ];
+          return {
+            ...n,
+            status: "success",
+            lastAnswer: direct,
+            history,
+            pipeline: {
+              ...(n.pipeline ?? {}),
+              phase: "done",
+              pendingContinue: false,
+              activeRunId: null,
+              nextAction: { type: "auto", description: "", recommended: true }
+            }
+          };
+        });
+        return res.json({ session: await loadSession(sessionId), run: null, rewritten });
+      }
+
       if (await isDockerLikelyUnavailable()) {
         const fallbackText =
           "현재 Docker 엔진이 비활성 상태라 Ask 런타임을 시작하지 못했습니다. Docker Desktop을 켠 뒤 다시 요청해 주세요.";
