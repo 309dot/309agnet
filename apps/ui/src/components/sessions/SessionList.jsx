@@ -7,6 +7,7 @@ export default function SessionList({
   onSelect,
   onSelectProject,
   onAddProject,
+  onUpdateProject,
   onRenameProject,
   onDeleteProject,
   onNewChat,
@@ -23,8 +24,14 @@ export default function SessionList({
   const [projectMenuOpenFor, setProjectMenuOpenFor] = useState(null);
   const [renameProjectId, setRenameProjectId] = useState(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const [editProjectId, setEditProjectId] = useState(null);
+  const [editType, setEditType] = useState("path");
+  const [editValue, setEditValue] = useState("");
+  const [editName, setEditName] = useState("");
   const [collapsedProjectIds, setCollapsedProjectIds] = useState(() => new Set());
   const menuWrapRef = useRef(null);
+  const pathPickerRef = useRef(null);
+  const editPathPickerRef = useRef(null);
 
   const allProjects = Array.isArray(projects) ? projects : [];
   const selectedProject =
@@ -59,6 +66,35 @@ export default function SessionList({
     setProjectType("path");
     setProjectValue("");
     setProjectName("");
+  };
+
+  const mergeSelectedFolder = (currentValue, folderName) => {
+    const folder = String(folderName ?? "").trim();
+    if (!folder) return String(currentValue ?? "");
+    const current = String(currentValue ?? "").trim();
+    if (!current) return folder;
+    if (!current.startsWith("/")) return folder;
+    const base = current.replace(/\/+$/, "").split("/").slice(0, -1).join("/");
+    return `${base || ""}/${folder}`.replace(/\/{2,}/g, "/");
+  };
+
+  const handlePickFolder = (target) => {
+    const input = target === "edit" ? editPathPickerRef.current : pathPickerRef.current;
+    if (!input) return;
+    input.value = "";
+    input.click();
+  };
+
+  const handleFolderPicked = (target, event) => {
+    const file = event.target.files?.[0];
+    const rel = String(file?.webkitRelativePath ?? "");
+    const root = rel.split("/")[0] || "";
+    if (!root) return;
+    if (target === "edit") {
+      setEditValue((prev) => mergeSelectedFolder(prev, root));
+    } else {
+      setProjectValue((prev) => mergeSelectedFolder(prev, root));
+    }
   };
 
   const submitProject = () => {
@@ -98,6 +134,33 @@ export default function SessionList({
     if (!nextName) return;
     onRenameProject?.(projectId, nextName);
     cancelRenameProject();
+  };
+
+  const startEditProject = (project) => {
+    if (!project) return;
+    setEditProjectId(project.id);
+    setEditType(project.type === "git" ? "git" : "path");
+    setEditValue(String(project.value ?? ""));
+    setEditName(String(project.name ?? ""));
+  };
+
+  const cancelEditProject = () => {
+    setEditProjectId(null);
+    setEditType("path");
+    setEditValue("");
+    setEditName("");
+  };
+
+  const submitEditProject = (project) => {
+    const value = String(editValue ?? "").trim();
+    if (!value) return;
+    onUpdateProject?.(project.id, {
+      id: project.id,
+      type: editType === "git" ? "git" : "path",
+      value,
+      name: String(editName ?? "").trim() || project.name
+    });
+    cancelEditProject();
   };
 
   return (
@@ -150,6 +213,22 @@ export default function SessionList({
               placeholder={projectType === "git" ? "owner/repo 또는 remote URL" : "/Users/.../project"}
             />
           </div>
+          {projectType === "path" ? (
+            <div className="project-composer-row">
+              <button className="ghost project-path-picker" type="button" onClick={() => handlePickFolder("new")}>
+                폴더 선택
+              </button>
+              <input
+                ref={pathPickerRef}
+                type="file"
+                className="hidden-folder-picker"
+                webkitdirectory=""
+                directory=""
+                multiple
+                onChange={(event) => handleFolderPicked("new", event)}
+              />
+            </div>
+          ) : null}
           <div className="project-composer-row">
             <input
               value={projectName}
@@ -186,7 +265,63 @@ export default function SessionList({
                 >
                   {collapsed ? "▸" : "▾"}
                 </button>
-                {renameProjectId === project.id ? (
+                {editProjectId === project.id ? (
+                  <div className="project-edit-inline">
+                    <select
+                      value={editType}
+                      onChange={(event) => setEditType(event.target.value === "git" ? "git" : "path")}
+                    >
+                      <option value="path">폴더 경로</option>
+                      <option value="git">Git</option>
+                    </select>
+                    <input
+                      value={editValue}
+                      onChange={(event) => setEditValue(event.target.value)}
+                      placeholder={editType === "git" ? "owner/repo 또는 remote URL" : "/Users/.../project"}
+                    />
+                    {editType === "path" ? (
+                      <button
+                        className="ghost project-path-picker inline"
+                        type="button"
+                        onClick={() => handlePickFolder("edit")}
+                      >
+                        폴더 선택
+                      </button>
+                    ) : null}
+                    <input
+                      value={editName}
+                      onChange={(event) => setEditName(event.target.value)}
+                      placeholder="표시 이름"
+                    />
+                    <div className="project-edit-actions">
+                      <button
+                        className="ghost icon-button project-rename-btn"
+                        type="button"
+                        title="저장"
+                        onClick={() => submitEditProject(project)}
+                      >
+                        ✓
+                      </button>
+                      <button
+                        className="ghost icon-button project-rename-btn"
+                        type="button"
+                        title="취소"
+                        onClick={cancelEditProject}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <input
+                      ref={editPathPickerRef}
+                      type="file"
+                      className="hidden-folder-picker"
+                      webkitdirectory=""
+                      directory=""
+                      multiple
+                      onChange={(event) => handleFolderPicked("edit", event)}
+                    />
+                  </div>
+                ) : renameProjectId === project.id ? (
                   <div className="project-rename-inline">
                     <input
                       value={renameDraft}
@@ -242,6 +377,18 @@ export default function SessionList({
                     <button
                       className="menu-button"
                       type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        startEditProject(project);
+                        setProjectMenuOpenFor(null);
+                      }}
+                    >
+                      경로/git 수정
+                    </button>
+                    <button
+                      className="menu-button"
+                      type="button"
                       disabled={!canEditProject}
                       onClick={(event) => {
                         event.preventDefault();
@@ -255,7 +402,6 @@ export default function SessionList({
                     <button
                       className="menu-button danger"
                       type="button"
-                      disabled={!canEditProject}
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();

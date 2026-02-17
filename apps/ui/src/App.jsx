@@ -670,44 +670,71 @@ export default function App() {
     }
   };
 
-  const handleRenameProject = async (projectId, nextName) => {
-    const name = String(nextName ?? "").trim();
-    if (!projectId || !name || projectId === DEFAULT_PROJECT.id) return;
+  const patchProjectForSession = async (sessionId, project) => {
+    const res = await apiFetch(`/api/sessions/${encodeURIComponent(sessionId)}/project`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: project.id,
+        type: project.type,
+        value: project.value,
+        name: project.name
+      })
+    });
+    if (!res.ok) throw new Error("patch_failed");
+  };
+
+  const handleUpdateProject = async (projectId, draft) => {
     const bucket = projectBuckets.find((p) => p.id === projectId);
     if (!bucket) return;
-    const renamedProject = { ...bucket, name };
+    const nextProject = normalizeProjectRef({
+      id: projectId,
+      type: draft?.type ?? bucket.type,
+      value: draft?.value ?? bucket.value,
+      name: draft?.name ?? bucket.name
+    });
     try {
       await Promise.all(
         (bucket.sessions ?? []).map((session) =>
-          apiFetch(`/api/sessions/${encodeURIComponent(session.id)}/project`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              id: renamedProject.id,
-              type: renamedProject.type,
-              value: renamedProject.value,
-              name: renamedProject.name
-            })
-          })
+          patchProjectForSession(session.id, nextProject)
         )
       );
-      setManualProjects((prev) =>
-        prev.map((project) => (project.id === projectId ? { ...project, name } : project))
-      );
+      setManualProjects((prev) => {
+        const isDefault = projectId === DEFAULT_PROJECT.id;
+        if (isDefault) return prev;
+        const exists = prev.some((project) => project.id === projectId);
+        if (!exists) return [...prev, nextProject];
+        return prev.map((project) => (project.id === projectId ? nextProject : project));
+      });
       setSessions((prev) =>
         prev.map((session) =>
           normalizeProjectRef(session.project).id === projectId
-            ? { ...session, project: renamedProject }
+            ? { ...session, project: nextProject }
             : session
         )
       );
+      if (selectedProjectId === projectId) setSelectedProjectId(nextProject.id);
+      setNotice("");
     } catch {
-      setNotice("프로젝트 이름 변경에 실패했습니다.");
+      setNotice("프로젝트 수정에 실패했습니다.");
     }
   };
 
+  const handleRenameProject = async (projectId, nextName) => {
+    const name = String(nextName ?? "").trim();
+    if (!projectId || !name) return;
+    const bucket = projectBuckets.find((p) => p.id === projectId);
+    if (!bucket) return;
+    const renamedProject = { ...bucket, name };
+    await handleUpdateProject(projectId, renamedProject);
+  };
+
   const handleDeleteProject = async (projectId) => {
-    if (!projectId || projectId === DEFAULT_PROJECT.id) return;
+    if (!projectId) return;
+    if (projectId === DEFAULT_PROJECT.id) {
+      setNotice("기본 프로젝트는 삭제할 수 없습니다.");
+      return;
+    }
     const bucket = projectBuckets.find((p) => p.id === projectId);
     if (!bucket) return;
     if (!confirm(`프로젝트 '${bucket.name}'을(를) 삭제할까요? 세션은 기본 프로젝트로 이동됩니다.`)) {
@@ -716,16 +743,7 @@ export default function App() {
     try {
       await Promise.all(
         (bucket.sessions ?? []).map((session) =>
-          apiFetch(`/api/sessions/${encodeURIComponent(session.id)}/project`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              id: DEFAULT_PROJECT.id,
-              type: DEFAULT_PROJECT.type,
-              value: DEFAULT_PROJECT.value,
-              name: DEFAULT_PROJECT.name
-            })
-          })
+          patchProjectForSession(session.id, DEFAULT_PROJECT)
         )
       );
       setSessions((prev) =>
@@ -866,6 +884,7 @@ export default function App() {
           onSelect={setActiveSessionId}
           onSelectProject={setSelectedProjectId}
           onAddProject={handleAddProject}
+          onUpdateProject={handleUpdateProject}
           onRenameProject={handleRenameProject}
           onDeleteProject={handleDeleteProject}
           onNewChat={handleNewChat}

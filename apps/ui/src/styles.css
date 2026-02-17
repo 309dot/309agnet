@@ -2097,6 +2097,22 @@ button.ghost {
   padding: 7px 10px;
 }
 
+.project-path-picker {
+  width: 100%;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.project-path-picker.inline {
+  width: auto;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.hidden-folder-picker {
+  display: none;
+}
+
 .project-composer-actions {
   display: flex;
   justify-content: flex-end;
@@ -2215,6 +2231,31 @@ button.ghost {
 .project-rename-btn {
   width: 24px;
   height: 24px;
+}
+
+.project-edit-inline {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.project-edit-inline select,
+.project-edit-inline input {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  padding: 5px 8px;
+  min-width: 0;
+}
+
+.project-edit-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .project-section-body {
