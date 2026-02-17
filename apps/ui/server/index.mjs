@@ -54,6 +54,8 @@ const GLOBAL_MEMORY_PATH = path.join(MEMORY_DIR, "global.md");
 const TMP_DIR = path.join(DATA_DIR, "tmp");
 const RAG_DIR = path.join(DATA_DIR, "rag");
 const RAG_WEB_CACHE_DIR = path.join(RAG_DIR, "web-cache");
+const LOGS_DIR = path.join(DATA_DIR, "logs");
+const MEMORY_DB_PATH = path.join(DATA_DIR, "memory.db");
 const CAPABILITIES_DIR = path.join(DATA_DIR, "capabilities");
 const CAP_REGISTRY_PATH = path.join(CAPABILITIES_DIR, "registry.json");
 
@@ -277,7 +279,21 @@ const ensureDirs = async () => {
   await fsp.mkdir(MEMORY_DIR, { recursive: true });
   await fsp.mkdir(TMP_DIR, { recursive: true });
   await fsp.mkdir(RAG_WEB_CACHE_DIR, { recursive: true });
+  await fsp.mkdir(LOGS_DIR, { recursive: true });
   await fsp.mkdir(CAPABILITIES_DIR, { recursive: true });
+};
+
+let memoryModule = null;
+const loadMemoryModule = async () => {
+  if (memoryModule) return memoryModule;
+  try {
+    const mod = await import("../../packages/309agent-memory/dist/index.js");
+    memoryModule = mod;
+    if (mod.initDb) mod.initDb(MEMORY_DB_PATH);
+    return mod;
+  } catch {
+    return null;
+  }
 };
 
 const migrateGlobalMemory = async () => {
@@ -1391,15 +1407,37 @@ const appendMessage = async (sessionId, message) => {
   });
 };
 
+const DOCKER_AVAILABLE_CACHE_TTL_MS = 30_000;
+const DOCKER_AVAILABLE_CACHE = { available: false, until: 0 };
+
 const isDockerLikelyUnavailable = async () => {
-  return await new Promise((resolve) => {
-    execFile("docker", ["info"], { timeout: 1500 }, (error, stdout, stderr) => {
-      if (error) return resolve(true);
-      const out = `${stdout || ""}\n${stderr || ""}`;
-      if (/Docker Desktop is unable to start/i.test(out)) return resolve(true);
-      resolve(false);
+  const now = Date.now();
+  if (DOCKER_AVAILABLE_CACHE.available && DOCKER_AVAILABLE_CACHE.until > now) {
+    return false;
+  }
+
+  const checkOnce = (timeoutMs = 3000) =>
+    new Promise((resolve) => {
+      execFile("docker", ["info"], { timeout: timeoutMs }, (error, stdout, stderr) => {
+        if (error) return resolve(false);
+        const out = `${stdout || ""}\n${stderr || ""}`;
+        if (/Docker Desktop is unable to start/i.test(out)) return resolve(false);
+        resolve(true);
+      });
     });
-  });
+
+  let available = false;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    available = await checkOnce(3000);
+    if (available) break;
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
+  }
+
+  if (available) {
+    DOCKER_AVAILABLE_CACHE.available = true;
+    DOCKER_AVAILABLE_CACHE.until = now + DOCKER_AVAILABLE_CACHE_TTL_MS;
+  }
+  return !available;
 };
 
 const getRecentMessagesForContext = (messages, limit = 6) => {
@@ -1452,7 +1490,10 @@ const updateSessionMemory = async (sessionId, entry) => {
   });
 };
 
-const buildContextPrefix = async (session) => {
+const buildContextPrefix = async (session, options = {}) => {
+  const recallContext = String(
+    options?.recallContext ?? session?.pipeline?.recallContext ?? ""
+  ).trim();
   const figmaBlock = String(session?.pipeline?.mcpContext?.figma?.text ?? "").trim();
   const ragBlock = String(session?.pipeline?.rag?.webContext ?? "").trim();
   const mode = String(session?.agentMode ?? "").toLowerCase();
@@ -1462,12 +1503,134 @@ const buildContextPrefix = async (session) => {
   const recent = getRecentMessagesForContext(session?.messages ?? [], isCodeMode ? 4 : 6);
 
   const blocks = [];
+  if (recallContext) blocks.push(recallContext);
   if (figmaBlock) blocks.push(figmaBlock);
   if (ragBlock) blocks.push(ragBlock);
   if (globalMemory) blocks.push(`GLOBAL_MEMORY:\n${globalMemory}`);
   if (sessionMemory) blocks.push(`SESSION_MEMORY:\n${sessionMemory}`);
   if (recent) blocks.push(`RECENT_MESSAGES:\n${recent}`);
   return blocks.length ? `${blocks.join("\n\n")}\n\n---\n\n` : "";
+};
+
+const PROMPTS_DIR = path.join(WORKSPACE, "prompts");
+
+const runMemoryWriterPipeline = async ({
+  session,
+  worldChangeSummary,
+  modelId = AGENT_MODELS.ask
+}) => {
+  const mod = await loadMemoryModule();
+  if (!mod?.upsertMemory || !mod?.computeImportance || !mod?.trustScore) return;
+
+  const request = String(session?.request ?? "").trim();
+  const lastAnswer = String(session?.lastAnswer ?? "").trim();
+  const planSummary = trimCharsFromEnd(
+    (session?.plan ?? "") + "\n" + JSON.stringify(session?.pipeline?.planSteps ?? []),
+    1500
+  );
+  const historySummary = (session?.history ?? [])
+    .slice(-5)
+    .map((h) => `${h?.type ?? "?"}: ${toOneLine(h?.summary ?? h?.detail ?? "", 80)}`)
+    .join("\n");
+  const projectId = String(session?.project?.id ?? "default").trim() || "default";
+
+  const inputBlock = `
+request: ${request}
+lastAnswer: ${lastAnswer}
+plan 요약: ${planSummary}
+changedFiles: ${worldChangeSummary ?? "(없음)"}
+history 요약: ${historySummary || "(없음)"}
+project_id: ${projectId}
+`;
+
+  let promptTemplate = "";
+  try {
+    promptTemplate = await fsp.readFile(path.join(PROMPTS_DIR, "memory_writer.md"), "utf-8");
+  } catch {
+    return;
+  }
+  const fullPrompt = `${promptTemplate}\n${inputBlock}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const resp = await fetch(`${OLLAMA_API_BASE}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: modelId,
+        stream: false,
+        messages: [{ role: "user", content: fullPrompt }],
+        options: { num_ctx: 4096, temperature: 0.2 }
+      })
+    });
+    clearTimeout(timer);
+    if (!resp.ok) return;
+    const data = await resp.json().catch(() => null);
+    const text = String(data?.message?.content ?? "").trim();
+    if (!text) return;
+
+    let parsed = null;
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        // ignore
+      }
+    }
+    if (!parsed || !Array.isArray(parsed.memory_candidates)) return;
+
+    const now = new Date().toISOString();
+    const expire14 = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+    for (const c of parsed.memory_candidates) {
+      const importance = mod.computeImportance(c);
+      const trust = mod.trustScore(c.evidence_source ?? "chat");
+      const id = crypto.randomUUID();
+      const type = ["PROFILE", "PROJECT", "DECISION", "FACT", "EPHEMERAL"].includes(c.type)
+        ? c.type
+        : "FACT";
+      const mem = {
+        id,
+        type,
+        project_id: String(c.project_id ?? projectId).trim() || "default",
+        statement: String(c.statement ?? "").trim() || "(빈 statement)",
+        details: c.details ? String(c.details).trim() : null,
+        tags: JSON.stringify(Array.isArray(c.tags) ? c.tags : []),
+        importance_score: importance,
+        trust_score: trust,
+        created_at: now,
+        updated_at: now,
+        expires_at: null,
+        evidence_source: c.evidence_source ?? "chat",
+        evidence_ref: c.evidence_ref ?? null
+      };
+
+      if (importance >= 70) {
+        mod.upsertMemory(mem);
+      } else if (importance >= 40 && importance < 70) {
+        mem.type = "EPHEMERAL";
+        mem.expires_at = expire14;
+        mod.upsertMemory(mem);
+      }
+    }
+
+    await ensureDirs();
+    const logPath = path.join(LOGS_DIR, "conversation.jsonl");
+    const logLine = JSON.stringify({
+      at: now,
+      sessionId: session?.id,
+      project_id: projectId,
+      turn_summary: parsed.turn_summary,
+      action_summary: parsed.action_summary,
+      candidates_count: parsed.memory_candidates?.length ?? 0
+    }) + "\n";
+    await fsp.appendFile(logPath, logLine).catch(() => {});
+  } catch {
+    clearTimeout(timer);
+  }
 };
 
 const readWebCache = async (url) => {
@@ -1901,9 +2064,44 @@ const buildAskPrompt = ({ request, contextPrefix }) => {
   return `${contextPrefix || ""}너는 로컬 309Agent(=OpenClaw)다.\n\n규칙:\n- 반드시 한국어로만 답한다.\n- tool을 사용하지 않는다.\n- 짧고 명확하게 답한다.\n- 파일을 열겠다/수정하겠다/실행하겠다 같은 \"실행을 암시하는 표현\"은 금지한다. (ask 모드는 설명/요약만)\n- 만약 컨텍스트에 RAG_WEB_CONTEXT가 포함되어 있다면, 반드시 그 근거를 기반으로 답한다. (\"직접 방문해야\" 같은 회피 금지)\n- 입력에 Figma 링크가 있고 FIGMA_MCP_CONTEXT가 주어지면, 그 컨텍스트를 근거로 답하라(“못 한다”로 회피하지 말 것).\n\n요청:\n${request}`;
 };
 
-const askDirectFromOllama = async ({ modelId, request }) => {
+const isWeatherQuery = (text) => {
+  const s = String(text ?? "").trim().toLowerCase();
+  return /(날씨|기온|weather|오늘\s*날씨|내일\s*날씨)/i.test(s);
+};
+
+const WMO_WEATHER_LABELS = {
+  0: "맑음", 1: "대체로 맑음", 2: "부분적으로 흐림", 3: "흐림",
+  45: "안개", 48: "서리 안개", 51: "이슬비", 53: "이슬비", 55: "이슬비",
+  61: "비", 63: "비", 65: "폭우", 66: "진눈깨비", 67: "폭우+진눈깨비",
+  71: "눈", 73: "눈", 75: "폭설", 77: "진눈깨비", 80: "소나기", 81: "소나기", 82: "폭우",
+  85: "눈 소나기", 86: "눈 소나기", 95: "뇌우", 96: "뇌우+우박", 99: "뇌우+우박"
+};
+
+const fetchWeatherFromOpenMeteo = async () => {
+  const lat = 37.5665;
+  const lon = 126.978;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m&timezone=Asia/Seoul`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const resp = await fetch(url, { signal: controller.signal });
+    if (!resp.ok) return null;
+    const data = await resp.json().catch(() => null);
+    const c = data?.current;
+    if (!c) return null;
+    const label = WMO_WEATHER_LABELS[c.weather_code] ?? `코드 ${c.weather_code}`;
+    return `[실제 날씨 데이터 - 서울]\n현재 기온: ${c.temperature_2m}°C, 날씨: ${label}, 습도: ${c.relative_humidity_2m}%, 풍속: ${c.wind_speed_10m} km/h (${data?.current?.time ?? "현재"} 기준)`;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const askDirectFromOllama = async ({ modelId, request, injectedContext }) => {
   const model = String(modelId ?? "").trim() || AGENT_MODELS.ask;
-  const prompt = String(request ?? "").trim();
+  let prompt = String(request ?? "").trim();
+  if (injectedContext) prompt = `다음 정보를 반드시 사용해서 짧게 답하라. 위치/추가 정보를 요청하지 말 것.\n\n${injectedContext}\n\n사용자 요청: ${prompt}`;
   if (!prompt) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 25000);
@@ -2706,6 +2904,12 @@ const startRun = async ({ prompt, modelId, kind, sessionId, preserveSessionState
         )}: ${toOneLine(updated.request, 120)} -> ${toOneLine(updated.lastAnswer, 180)}`;
         await updateSessionMemory(sessionId, entry);
         await updateGlobalMemory(entry);
+
+        const wcSummary = lines.length ? `생성 ${wc.filesCreated.length}, 수정 ${wc.filesModified.length}, 삭제 ${wc.filesDeleted.length}: ${lines.join("; ")}` : null;
+        runMemoryWriterPipeline({
+          session: updated,
+          worldChangeSummary: wcSummary
+        }).catch(() => {});
       };
 
       // Keep existing memory behavior for ask/plan modes.
@@ -2718,6 +2922,7 @@ const startRun = async ({ prompt, modelId, kind, sessionId, preserveSessionState
         )}: ${toOneLine(session.request, 120)} -> ${toOneLine(session.lastAnswer, 180)}`;
         await updateSessionMemory(sessionId, entry);
         await updateGlobalMemory(entry);
+        runMemoryWriterPipeline({ session, worldChangeSummary: null }).catch(() => {});
         return;
       }
 
@@ -3807,13 +4012,37 @@ app.post("/api/chat/send", async (req, res) => {
     }
 
     const session = await loadSession(sessionId);
-    const contextPrefix = await buildContextPrefix(session);
+    let recallContext = "";
+    const mem = await loadMemoryModule();
+    if (mem?.shouldRecall?.(message) && mem?.recall) {
+      const projectId = String(session?.project?.id ?? "default").trim() || "default";
+      const result = mem.recall(projectId, message, { topN: 8, ftsLimit: 6 });
+      recallContext = result?.contextPackage ?? "";
+    }
+    if (recallContext) {
+      await updateSession(sessionId, (s) => {
+        const n = normalizeSession(s);
+        return {
+          ...n,
+          pipeline: { ...(n.pipeline ?? {}), recallContext }
+        };
+      });
+    }
+    const sessionForContext = recallContext
+      ? { ...session, pipeline: { ...(session.pipeline ?? {}), recallContext } }
+      : session;
+    const contextPrefix = await buildContextPrefix(sessionForContext, { recallContext });
     const { text: rewrittenPrompt, rewritten } = rewriteWorkspacePaths(message);
 
     if (agentMode === "ask") {
+      let injectedContext = null;
+      if (isWeatherQuery(rewrittenPrompt)) {
+        injectedContext = await fetchWeatherFromOpenMeteo();
+      }
       const direct = await askDirectFromOllama({
         modelId: effectiveModel,
-        request: rewrittenPrompt
+        request: rewrittenPrompt,
+        injectedContext: injectedContext || undefined
       });
       if (direct) {
         await appendMessage(sessionId, {
@@ -4303,6 +4532,7 @@ const PORT = Number(process.env.PORT ?? 4310);
 
 ensureDirs()
   .then(() => migrateGlobalMemory())
+  .then(() => loadMemoryModule())
   .catch(() => {})
   .finally(() => {
     app.listen(PORT, () => {

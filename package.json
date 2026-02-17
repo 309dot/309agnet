@@ -1,11 +1,16 @@
 {
   "private": true,
   "scripts": {
-    "build": "pnpm -C apps/ui build",
-    "dev": "pnpm -C apps/ui dev"
+    "build": "pnpm -C packages/309agent-memory build && pnpm -C apps/ui build",
+    "build:memory": "pnpm -C packages/309agent-memory build",
+    "dev": "pnpm run build:memory 2>/dev/null; pnpm -C apps/ui dev"
   },
   "packageManager": "pnpm@9.15.9",
   "devDependencies": {
     "jest": "^30.2.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.6.0",
+    "playwright": "^1.58.2"
   }
 }

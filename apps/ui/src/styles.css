@@ -1776,7 +1776,7 @@ button.ghost {
 .message.assistant .bubble {
   width: 100%;
   max-width: none;
-  padding: 2.5rem 0;
+  padding: 1rem 0;
   background: transparent;
   border: none;
   border-radius: 0;

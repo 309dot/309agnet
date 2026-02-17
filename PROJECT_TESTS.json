@@ -1,6 +1,6 @@
 {
-  "default": "pnpm test",
+  "default": "pnpm -C apps/ui build",
   "paths": {
-    "/workspace": "pnpm test"
+    "/workspace": "pnpm -C apps/ui build"
   }
 }
