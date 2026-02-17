@@ -137,8 +137,6 @@ export default function PromptComposer({
         </div>
       ) : null}
 
-      {progressUi?.notice ? <div className="agent-progress-note">{progressUi.notice}</div> : null}
-
       <div className="agent-chat-area">
         <textarea
           ref={textareaRef}
@@ -168,6 +166,8 @@ export default function PromptComposer({
           </button>
         </div>
       </div>
+
+      {progressUi?.notice ? <div className="agent-progress-note">{progressUi.notice}</div> : null}
     </div>
   );
 }

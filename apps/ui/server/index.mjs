@@ -1390,6 +1390,17 @@ const appendMessage = async (sessionId, message) => {
   });
 };
 
+const isDockerLikelyUnavailable = async () => {
+  return await new Promise((resolve) => {
+    execFile("docker", ["info"], { timeout: 1500 }, (error, stdout, stderr) => {
+      if (error) return resolve(true);
+      const out = `${stdout || ""}\n${stderr || ""}`;
+      if (/Docker Desktop is unable to start/i.test(out)) return resolve(true);
+      resolve(false);
+    });
+  });
+};
+
 const getRecentMessagesForContext = (messages, limit = 6) => {
   const recent = [...(messages || [])].slice(-limit);
   const lines = [];
@@ -2029,6 +2040,13 @@ const startRun = async ({ prompt, modelId, kind, sessionId, preserveSessionState
     if (!cfg?.agents?.defaults) return null;
     cfg.agents.defaults.model = cfg.agents.defaults.model ?? {};
     cfg.agents.defaults.model.primary = `ollama/${modelId}`;
+    // Ask-mode should not depend on Docker sandbox availability.
+    // If Docker Desktop is down, ask runs must still answer via local model.
+    if (kind === "ask") {
+      cfg.agents.defaults.sandbox = cfg.agents.defaults.sandbox ?? {};
+      cfg.agents.defaults.sandbox.mode = "off";
+      cfg.agents.defaults.sandbox.workspaceAccess = "rw";
+    }
     // Write an ephemeral config for this run. Do NOT redact gateway tokens here, or Gateway auth may break.
     // The file is stored under DATA_DIR/tmp and is deleted on run completion.
     const tempPath = path.join(TMP_DIR, `${id}.openclaw.json`);
@@ -2094,6 +2112,11 @@ const startRun = async ({ prompt, modelId, kind, sessionId, preserveSessionState
     OPENCLAW_STATE_DIR,
     OPENCLAW_CONFIG_PATH: tempConfigPath ?? OPENCLAW_CONFIG
   };
+
+  if (kind === "ask") {
+    env.OPENCLAW_SANDBOX_MODE = "off";
+    env.OPENCLAW_SANDBOX_WORKSPACE_ACCESS = "rw";
+  }
 
   if (cfg?.gateway?.auth?.token) {
     env.OPENCLAW_GATEWAY_TOKEN = cfg.gateway.auth.token;
@@ -3754,6 +3777,31 @@ app.post("/api/chat/send", async (req, res) => {
     const { text: rewrittenPrompt, rewritten } = rewriteWorkspacePaths(message);
 
     if (agentMode === "ask") {
+      if (await isDockerLikelyUnavailable()) {
+        const fallbackText =
+          "현재 Docker 엔진이 비활성 상태라 Ask 런타임을 시작하지 못했습니다. Docker Desktop을 켠 뒤 다시 요청해 주세요.";
+        await appendMessage(sessionId, {
+          role: "assistant",
+          kind: "assistant",
+          text: fallbackText
+        });
+        await updateSession(sessionId, (s) => {
+          const n = normalizeSession(s);
+          return {
+            ...n,
+            status: "success",
+            lastAnswer: fallbackText,
+            pipeline: {
+              ...(n.pipeline ?? {}),
+              phase: "done",
+              pendingContinue: false,
+              activeRunId: null,
+              nextAction: { type: "needs_user", description: "Docker Desktop 실행 후 다시 시도해 주세요.", recommended: true }
+            }
+          };
+        });
+        return res.json({ session: await loadSession(sessionId), run: null, rewritten });
+      }
       const askPrompt = buildAskPrompt({ request: rewrittenPrompt, contextPrefix });
       const run = await startRun({
         prompt: askPrompt,

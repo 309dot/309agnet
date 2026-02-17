@@ -1880,6 +1880,7 @@ button.ghost {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
+  order: 3;
 }
 
 .agent-pill {
@@ -2177,16 +2178,20 @@ button.ghost {
 }
 
 .project-collapse,
-.project-more {
+.project-more,
+.project-edit-open {
   width: 24px;
   height: 24px;
 }
 
-.project-more {
+.project-more,
+.project-edit-open {
   opacity: 0.7;
 }
 
 .project-section-header:hover .project-more,
+.project-section-header:hover .project-edit-open,
+.project-edit-open:focus-visible,
 .project-more:focus-visible {
   opacity: 1;
 }
@@ -2260,6 +2265,33 @@ button.ghost {
 
 .project-section-body {
   padding: 0 0 4px 20px;
+}
+
+.project-edit-dock {
+  position: fixed;
+  top: 90px;
+  right: 16px;
+  width: min(320px, calc(100vw - 24px));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 16px 36px var(--shadow);
+  z-index: 35;
+}
+
+.project-edit-dock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.project-edit-dock-body {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
 }
 
 .thread-row {

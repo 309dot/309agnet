@@ -142,6 +142,7 @@ export default function SessionList({
     setEditType(project.type === "git" ? "git" : "path");
     setEditValue(String(project.value ?? ""));
     setEditName(String(project.name ?? ""));
+    setProjectMenuOpenFor(null);
   };
 
   const cancelEditProject = () => {
@@ -162,6 +163,9 @@ export default function SessionList({
     });
     cancelEditProject();
   };
+
+  const editingProject =
+    allProjects.find((project) => project.id === editProjectId) ?? null;
 
   return (
     <div className="session-list">
@@ -265,63 +269,7 @@ export default function SessionList({
                 >
                   {collapsed ? "▸" : "▾"}
                 </button>
-                {editProjectId === project.id ? (
-                  <div className="project-edit-inline">
-                    <select
-                      value={editType}
-                      onChange={(event) => setEditType(event.target.value === "git" ? "git" : "path")}
-                    >
-                      <option value="path">폴더 경로</option>
-                      <option value="git">Git</option>
-                    </select>
-                    <input
-                      value={editValue}
-                      onChange={(event) => setEditValue(event.target.value)}
-                      placeholder={editType === "git" ? "owner/repo 또는 remote URL" : "/Users/.../project"}
-                    />
-                    {editType === "path" ? (
-                      <button
-                        className="ghost project-path-picker inline"
-                        type="button"
-                        onClick={() => handlePickFolder("edit")}
-                      >
-                        폴더 선택
-                      </button>
-                    ) : null}
-                    <input
-                      value={editName}
-                      onChange={(event) => setEditName(event.target.value)}
-                      placeholder="표시 이름"
-                    />
-                    <div className="project-edit-actions">
-                      <button
-                        className="ghost icon-button project-rename-btn"
-                        type="button"
-                        title="저장"
-                        onClick={() => submitEditProject(project)}
-                      >
-                        ✓
-                      </button>
-                      <button
-                        className="ghost icon-button project-rename-btn"
-                        type="button"
-                        title="취소"
-                        onClick={cancelEditProject}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <input
-                      ref={editPathPickerRef}
-                      type="file"
-                      className="hidden-folder-picker"
-                      webkitdirectory=""
-                      directory=""
-                      multiple
-                      onChange={(event) => handleFolderPicked("edit", event)}
-                    />
-                  </div>
-                ) : renameProjectId === project.id ? (
+                {renameProjectId === project.id ? (
                   <div className="project-rename-inline">
                     <input
                       value={renameDraft}
@@ -361,6 +309,18 @@ export default function SessionList({
                   </button>
                 )}
                 <button
+                  className="ghost icon-button project-edit-open"
+                  title="경로/git 수정"
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    startEditProject(project);
+                  }}
+                >
+                  ⚙
+                </button>
+                <button
                   className="ghost icon-button project-more"
                   title="프로젝트 메뉴"
                   type="button"
@@ -374,18 +334,6 @@ export default function SessionList({
                 </button>
                 {projectMenuOpenFor === project.id ? (
                   <div className="thread-row-menu project-row-menu" role="menu">
-                    <button
-                      className="menu-button"
-                      type="button"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        startEditProject(project);
-                        setProjectMenuOpenFor(null);
-                      }}
-                    >
-                      경로/git 수정
-                    </button>
                     <button
                       className="menu-button"
                       type="button"
@@ -508,6 +456,85 @@ export default function SessionList({
           );
         })}
       </div>
+
+      {editingProject ? (
+        <div className="project-edit-dock">
+          <div className="project-edit-dock-header">
+            <div className="threads-title">프로젝트 수정</div>
+            <button
+              className="ghost icon-button"
+              type="button"
+              title="닫기"
+              onClick={cancelEditProject}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="project-edit-dock-body">
+            <div className="project-composer-row">
+              <select
+                value={editType}
+                onChange={(event) => setEditType(event.target.value === "git" ? "git" : "path")}
+              >
+                <option value="path">폴더 경로</option>
+                <option value="git">Git</option>
+              </select>
+            </div>
+            <div className="project-composer-row">
+              <input
+                value={editValue}
+                onChange={(event) => setEditValue(event.target.value)}
+                placeholder={editType === "git" ? "owner/repo 또는 remote URL" : "/Users/.../project"}
+              />
+            </div>
+            {editType === "path" ? (
+              <div className="project-composer-row">
+                <button
+                  className="ghost project-path-picker"
+                  type="button"
+                  onClick={() => handlePickFolder("edit")}
+                >
+                  폴더 선택
+                </button>
+              </div>
+            ) : null}
+            <div className="project-composer-row">
+              <input
+                value={editName}
+                onChange={(event) => setEditName(event.target.value)}
+                placeholder="표시 이름"
+              />
+            </div>
+            <div className="project-composer-actions">
+              <button className="ghost" type="button" onClick={cancelEditProject}>
+                취소
+              </button>
+              <button className="primary" type="button" onClick={() => submitEditProject(editingProject)}>
+                저장
+              </button>
+            </div>
+            <button
+              className="ghost menu-button danger"
+              type="button"
+              onClick={() => {
+                onDeleteProject?.(editingProject.id);
+                cancelEditProject();
+              }}
+            >
+              프로젝트 삭제
+            </button>
+            <input
+              ref={editPathPickerRef}
+              type="file"
+              className="hidden-folder-picker"
+              webkitdirectory=""
+              directory=""
+              multiple
+              onChange={(event) => handleFolderPicked("edit", event)}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
