@@ -72,6 +72,7 @@ body {
 
 .panel-left {
   background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+  padding: 8px;
   height: 100vh;
   overflow: hidden;
 }
@@ -1001,7 +1002,7 @@ body {
 }
 
 .bubble {
-  padding: 12px 14px;
+  padding: 24px 12px;
   font-size: 13px;
   line-height: 1.5;
   border-radius: 14px;
@@ -1074,8 +1075,12 @@ button.primary {
 }
 
 button.ghost {
+  box-sizing: content-box;
   background: transparent;
-  border-color: var(--border);
+  border-width: 0px;
+  border-style: none;
+  border-color: rgba(0, 0, 0, 0);
+  border-image: none;
   color: var(--text);
 }
 
@@ -1936,7 +1941,7 @@ button.ghost {
   border-radius: 18px;
   min-height: 120px;
   width: 100%;
-  padding: 16px 24px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1947,6 +1952,7 @@ button.ghost {
   outline: none;
   resize: none;
   width: 100%;
+  border-radius: 0;
   min-height: 60px;
   background: transparent;
   padding: 0;
@@ -2156,7 +2162,8 @@ button.ghost {
 
 .project-section {
   position: relative;
-  border: 1px solid transparent;
+  box-sizing: content-box;
+  border: none;
   border-radius: 10px;
   margin: 2px 0 8px;
 }
@@ -2262,7 +2269,7 @@ button.ghost {
 }
 
 .project-section-body {
-  padding: 0 0 4px 20px;
+  padding: 0 8px 4px 20px;
 }
 
 .project-edit-dock {
@@ -2299,7 +2306,7 @@ button.ghost {
   align-items: center;
   gap: 6px;
   border-radius: 10px;
-  padding: 6px 6px;
+  padding: 2px 6px;
 }
 
 .thread-row:hover {
