@@ -51,6 +51,7 @@ const RUNS_DIR = path.join(DATA_DIR, "runs");
 const SESSIONS_DIR = path.join(DATA_DIR, "sessions");
 const MEMORY_DIR = path.join(DATA_DIR, "memory");
 const GLOBAL_MEMORY_PATH = path.join(MEMORY_DIR, "global.md");
+const USER_PROFILE_PATH = path.join(WORKSPACE, "USER.md");
 const TMP_DIR = path.join(DATA_DIR, "tmp");
 const RAG_DIR = path.join(DATA_DIR, "rag");
 const RAG_WEB_CACHE_DIR = path.join(RAG_DIR, "web-cache");
@@ -84,14 +85,14 @@ const MCP_CONFIG_TTL_MS = 5_000;
 const MCP_TOOLS_TTL_MS = 10_000;
 
 const PRESET_MODELS = {
-  assistant: "qwen2.5:7b",
-  dev: "qwen2.5:14b",
+  assistant: "phi3.5:latest",
+  dev: "deepseek-r1:7b",
   design: "qwen2.5:32b"
 };
 
 const AGENT_MODELS = {
-  ask: "qwen2.5:7b",
-  plan: "qwen2.5:14b",
+  ask: "phi3.5:latest",
+  plan: "deepseek-r1:7b",
   code: "qwen3-coder:30b"
 };
 
@@ -218,12 +219,16 @@ const pickModelId = (mode, models) => {
   const ids = (models ?? []).map((m) => m.id);
   const desired = AGENT_MODELS[mode] ?? AGENT_MODELS.ask;
   if (ids.includes(desired)) return desired;
-  // ask 모드만 fallback 허용 (대화 UX 보호).
-  // code/plan은 조용한 모델 강등을 막아 정확한 실패를 노출한다.
   if (mode === "ask") {
     if (ids.includes("qwen2.5:14b")) return "qwen2.5:14b";
     if (ids.includes("qwen2.5:7b")) return "qwen2.5:7b";
     return ids[0] ?? desired;
+  }
+  if (mode === "plan") {
+    if (ids.includes("qwen2.5:14b")) return "qwen2.5:14b";
+  }
+  if (mode === "code") {
+    if (ids.includes("deepseek-coder-v2:latest")) return "deepseek-coder-v2:latest";
   }
   return null;
 };
@@ -1360,7 +1365,7 @@ const extractRunSummary = (raw) => {
 };
 
 const buildPlanPrompt = ({ request, contextPrefix }) => {
-  return `${contextPrefix || ""}너는 로컬 309Agent(=OpenClaw)다. 이 단계에서는 도구(tool)를 절대 사용하지 말고, \"목표(goal)+성공 기준+계획\"만 만든다.\n\n추가 규칙:\n- 입력에 Figma 링크가 있으면, 시스템이 FIGMA_MCP_CONTEXT 블록을 주입할 수 있다. 해당 컨텍스트를 근거로 계획을 세워라.\n- 단, Figma 앱 UI를 직접 조작하거나 원격으로 클릭/편집하는 것은 할 수 없다.\n\n필수 출력 포맷(반드시 이 구조를 지켜라. 파싱 실패하면 작업이 중단된다):\n\nGOAL:\n- statement: (사용자 요청을 1문장 목표로)\n- success_criteria: [\"2~5개\", \"완료 판단 기준\"]\n\nPLAN_STEPS (JSON):\n[\n  {\"id\":\"S1\",\"description\":\"...\",\"tool\":\"read|write|edit|exec|process\",\"expected_output\":\"...\",\"risk_level\":\"low|med|high\",\"requires_approval\":false},\n  {\"id\":\"S2\",\"description\":\"...\",\"tool\":\"...\",\"expected_output\":\"...\",\"risk_level\":\"...\",\"requires_approval\":true}\n]\n\nRISKS:\n- (리스크)\n\nNEEDS_APPROVAL: mail|calendar|deploy|merge|git push|PR (해당되는 것만)\n\n요청:\n${request}`;
+  return `${contextPrefix || ""}너는 로컬 309Agent(=OpenClaw)다. 이 단계에서는 도구(tool)를 절대 사용하지 말고, \"목표(goal)+성공 기준+계획\"만 만든다.\n\n추가 규칙:\n- RECENT_MESSAGES(위의 대화)가 있으면 반드시 참고하라. \"위의 대화\", \"이전 맥락\", \"다음 할 일\", \"그거\", \"이어서\" 같은 표현은 RECENT_MESSAGES를 기준으로 해석한다. 목표와 계획은 이 맥락에 맞춰 수립한다.\n- 입력에 Figma 링크가 있으면, 시스템이 FIGMA_MCP_CONTEXT 블록을 주입할 수 있다. 해당 컨텍스트를 근거로 계획을 세워라.\n- 단, Figma 앱 UI를 직접 조작하거나 원격으로 클릭/편집하는 것은 할 수 없다.\n\n필수 출력 포맷(반드시 이 구조를 지켜라. 파싱 실패하면 작업이 중단된다):\n\nGOAL:\n- statement: (사용자 요청을 1문장 목표로)\n- success_criteria: [\"2~5개\", \"완료 판단 기준\"]\n\nPLAN_STEPS (JSON):\n[\n  {\"id\":\"S1\",\"description\":\"...\",\"tool\":\"read|write|edit|exec|process\",\"expected_output\":\"...\",\"risk_level\":\"low|med|high\",\"requires_approval\":false},\n  {\"id\":\"S2\",\"description\":\"...\",\"tool\":\"...\",\"expected_output\":\"...\",\"risk_level\":\"...\",\"requires_approval\":true}\n]\n\nRISKS:\n- (리스크)\n\nNEEDS_APPROVAL: mail|calendar|deploy|merge|git push|PR (해당되는 것만)\n\n요청:\n${request}`;
 };
 
 const buildEvaluatePrompt = ({ request, goal, plan, actSummary, changedFiles, verifySummary, contextPrefix }) => {
@@ -1490,6 +1495,15 @@ const updateSessionMemory = async (sessionId, entry) => {
   });
 };
 
+const loadUserProfile = async () => {
+  try {
+    const s = (await fsp.readFile(USER_PROFILE_PATH, "utf-8")).trim();
+    return s.length > 1000 ? `${s.slice(0, 1000)}…` : s;
+  } catch {
+    return "";
+  }
+};
+
 const buildContextPrefix = async (session, options = {}) => {
   const recallContext = String(
     options?.recallContext ?? session?.pipeline?.recallContext ?? ""
@@ -1501,9 +1515,11 @@ const buildContextPrefix = async (session, options = {}) => {
   const globalMemory = isCodeMode ? "" : await loadGlobalMemory();
   const sessionMemory = isCodeMode ? "" : String(session?.memory?.sessionSummary ?? "").trim();
   const recent = getRecentMessagesForContext(session?.messages ?? [], isCodeMode ? 4 : 6);
+  const userProfile = isCodeMode ? "" : await loadUserProfile();
 
   const blocks = [];
   if (recallContext) blocks.push(recallContext);
+  if (userProfile) blocks.push(`USER_PROFILE (나를 학습한 정보, 참고하여 답변):\n${userProfile}`);
   if (figmaBlock) blocks.push(figmaBlock);
   if (ragBlock) blocks.push(ragBlock);
   if (globalMemory) blocks.push(`GLOBAL_MEMORY:\n${globalMemory}`);
@@ -1562,7 +1578,7 @@ project_id: ${projectId}
         model: modelId,
         stream: false,
         messages: [{ role: "user", content: fullPrompt }],
-        options: { num_ctx: 4096, temperature: 0.2 }
+        options: { num_ctx: 8192, temperature: 0.2 }
       })
     });
     clearTimeout(timer);
@@ -2121,7 +2137,7 @@ const askDirectFromOllama = async ({ modelId, request, injectedContext }) => {
           },
           { role: "user", content: prompt }
         ],
-        options: { num_ctx: 4096, temperature: 0.4 }
+        options: { num_ctx: 8192, temperature: 0.4 }
       })
     });
     if (!resp.ok) return null;
@@ -2262,7 +2278,7 @@ const startRun = async ({ prompt, modelId, kind, sessionId, preserveSessionState
   const metaPath = path.join(RUNS_DIR, `${id}.json`);
   const MAX_RUN_MS_BY_KIND = {
     ask: 2 * 60_000,
-    plan: 4 * 60_000,
+    plan: 8 * 60_000,
     act: 8 * 60_000,
     verify: 6 * 60_000,
     evaluate: 4 * 60_000,

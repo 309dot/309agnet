@@ -21,7 +21,6 @@ export default function SessionList({
   const [projectName, setProjectName] = useState("");
   const [menuOpenFor, setMenuOpenFor] = useState(null);
   const [moveOpenFor, setMoveOpenFor] = useState(null);
-  const [projectMenuOpenFor, setProjectMenuOpenFor] = useState(null);
   const [renameProjectId, setRenameProjectId] = useState(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [editProjectId, setEditProjectId] = useState(null);
@@ -55,7 +54,6 @@ export default function SessionList({
       if (!menuWrapRef.current.contains(event.target)) {
         setMenuOpenFor(null);
         setMoveOpenFor(null);
-        setProjectMenuOpenFor(null);
       }
     };
     window.addEventListener("mousedown", onPointerDown);
@@ -142,7 +140,6 @@ export default function SessionList({
     setEditType(project.type === "git" ? "git" : "path");
     setEditValue(String(project.value ?? ""));
     setEditName(String(project.name ?? ""));
-    setProjectMenuOpenFor(null);
   };
 
   const cancelEditProject = () => {
@@ -198,6 +195,85 @@ export default function SessionList({
           </button>
         </div>
       </div>
+
+      {editingProject ? (
+        <div className="project-edit-dock project-edit-in-panel">
+          <div className="project-edit-dock-header">
+            <div className="threads-title">프로젝트 수정</div>
+            <button
+              className="ghost icon-button"
+              type="button"
+              title="닫기"
+              onClick={cancelEditProject}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="project-edit-dock-body">
+            <div className="project-composer-row">
+              <select
+                value={editType}
+                onChange={(event) => setEditType(event.target.value === "git" ? "git" : "path")}
+              >
+                <option value="path">폴더 경로</option>
+                <option value="git">Git</option>
+              </select>
+            </div>
+            <div className="project-composer-row">
+              <input
+                value={editValue}
+                onChange={(event) => setEditValue(event.target.value)}
+                placeholder={editType === "git" ? "owner/repo 또는 remote URL" : "/Users/.../project"}
+              />
+            </div>
+            {editType === "path" ? (
+              <div className="project-composer-row">
+                <button
+                  className="ghost project-path-picker"
+                  type="button"
+                  onClick={() => handlePickFolder("edit")}
+                >
+                  폴더 선택
+                </button>
+              </div>
+            ) : null}
+            <div className="project-composer-row">
+              <input
+                value={editName}
+                onChange={(event) => setEditName(event.target.value)}
+                placeholder="표시 이름"
+              />
+            </div>
+            <div className="project-composer-actions">
+              <button className="ghost" type="button" onClick={cancelEditProject}>
+                취소
+              </button>
+              <button className="primary" type="button" onClick={() => submitEditProject(editingProject)}>
+                저장
+              </button>
+            </div>
+            <button
+              className="ghost menu-button danger"
+              type="button"
+              onClick={() => {
+                onDeleteProject?.(editingProject.id);
+                cancelEditProject();
+              }}
+            >
+              프로젝트 삭제
+            </button>
+            <input
+              ref={editPathPickerRef}
+              type="file"
+              className="hidden-folder-picker"
+              webkitdirectory=""
+              directory=""
+              multiple
+              onChange={(event) => handleFolderPicked("edit", event)}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {composerOpen ? (
         <div className="project-composer">
@@ -257,7 +333,6 @@ export default function SessionList({
           const sessions = Array.isArray(project.sessions) ? project.sessions : [];
           const selected = project.id === selectedProject?.id;
           const collapsed = collapsedProjectIds.has(project.id);
-          const canEditProject = project.id !== "default";
           return (
             <div key={project.id} className={`project-section ${selected ? "active" : ""}`}>
               <div className="project-section-header">
@@ -305,62 +380,28 @@ export default function SessionList({
                     title={`${project.name} (${project.type})`}
                   >
                     <span className="project-chip-name">{project.name}</span>
-                    <span className="project-chip-count">{sessions.length}</span>
+                    <span
+                      className="ghost icon-button project-edit-in-main"
+                      role="button"
+                      tabIndex={0}
+                      title="경로/git 수정"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        startEditProject(project);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          startEditProject(project);
+                        }
+                      }}
+                    >
+                      ⚙
+                    </span>
                   </button>
                 )}
-                <button
-                  className="ghost icon-button project-edit-open"
-                  title="경로/git 수정"
-                  type="button"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    startEditProject(project);
-                  }}
-                >
-                  ⚙
-                </button>
-                <button
-                  className="ghost icon-button project-more"
-                  title="프로젝트 메뉴"
-                  type="button"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setProjectMenuOpenFor((prev) => (prev === project.id ? null : project.id));
-                  }}
-                >
-                  ⋯
-                </button>
-                {projectMenuOpenFor === project.id ? (
-                  <div className="thread-row-menu project-row-menu" role="menu">
-                    <button
-                      className="menu-button"
-                      type="button"
-                      disabled={!canEditProject}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        startRenameProject(project);
-                        setProjectMenuOpenFor(null);
-                      }}
-                    >
-                      이름 변경
-                    </button>
-                    <button
-                      className="menu-button danger"
-                      type="button"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onDeleteProject?.(project.id);
-                        setProjectMenuOpenFor(null);
-                      }}
-                    >
-                      프로젝트 삭제
-                    </button>
-                  </div>
-                ) : null}
               </div>
 
               {!collapsed ? (
@@ -457,84 +498,6 @@ export default function SessionList({
         })}
       </div>
 
-      {editingProject ? (
-        <div className="project-edit-dock">
-          <div className="project-edit-dock-header">
-            <div className="threads-title">프로젝트 수정</div>
-            <button
-              className="ghost icon-button"
-              type="button"
-              title="닫기"
-              onClick={cancelEditProject}
-            >
-              ✕
-            </button>
-          </div>
-          <div className="project-edit-dock-body">
-            <div className="project-composer-row">
-              <select
-                value={editType}
-                onChange={(event) => setEditType(event.target.value === "git" ? "git" : "path")}
-              >
-                <option value="path">폴더 경로</option>
-                <option value="git">Git</option>
-              </select>
-            </div>
-            <div className="project-composer-row">
-              <input
-                value={editValue}
-                onChange={(event) => setEditValue(event.target.value)}
-                placeholder={editType === "git" ? "owner/repo 또는 remote URL" : "/Users/.../project"}
-              />
-            </div>
-            {editType === "path" ? (
-              <div className="project-composer-row">
-                <button
-                  className="ghost project-path-picker"
-                  type="button"
-                  onClick={() => handlePickFolder("edit")}
-                >
-                  폴더 선택
-                </button>
-              </div>
-            ) : null}
-            <div className="project-composer-row">
-              <input
-                value={editName}
-                onChange={(event) => setEditName(event.target.value)}
-                placeholder="표시 이름"
-              />
-            </div>
-            <div className="project-composer-actions">
-              <button className="ghost" type="button" onClick={cancelEditProject}>
-                취소
-              </button>
-              <button className="primary" type="button" onClick={() => submitEditProject(editingProject)}>
-                저장
-              </button>
-            </div>
-            <button
-              className="ghost menu-button danger"
-              type="button"
-              onClick={() => {
-                onDeleteProject?.(editingProject.id);
-                cancelEditProject();
-              }}
-            >
-              프로젝트 삭제
-            </button>
-            <input
-              ref={editPathPickerRef}
-              type="file"
-              className="hidden-folder-picker"
-              webkitdirectory=""
-              directory=""
-              multiple
-              onChange={(event) => handleFolderPicked("edit", event)}
-            />
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

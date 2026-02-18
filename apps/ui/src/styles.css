@@ -323,7 +323,7 @@ body {
   position: sticky;
   bottom: 0;
   padding: 12px 24px 18px;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, var(--bg) 35%);
+  background: none;
 }
 
 .topbar-min {
@@ -2176,29 +2176,15 @@ button.ghost {
 .project-section-header {
   position: relative;
   display: grid;
-  grid-template-columns: 24px 1fr 24px;
+  grid-template-columns: 24px 1fr;
   align-items: center;
   gap: 4px;
   padding: 4px 4px;
 }
 
-.project-collapse,
-.project-more,
-.project-edit-open {
+.project-collapse {
   width: 24px;
   height: 24px;
-}
-
-.project-more,
-.project-edit-open {
-  opacity: 0.7;
-}
-
-.project-section-header:hover .project-more,
-.project-section-header:hover .project-edit-open,
-.project-edit-open:focus-visible,
-.project-more:focus-visible {
-  opacity: 1;
 }
 
 .project-section-main {
@@ -2209,7 +2195,7 @@ button.ghost {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   padding: 4px 6px;
   border-radius: 8px;
   text-align: left;
@@ -2217,6 +2203,19 @@ button.ghost {
 
 .project-section-main:hover {
   background: var(--accent-soft);
+}
+
+.project-edit-in-main {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  opacity: 0.7;
+}
+
+.project-section-main:hover .project-edit-in-main,
+.project-edit-in-main:focus-visible {
+  opacity: 1;
 }
 
 .project-rename-inline {
@@ -2282,6 +2281,17 @@ button.ghost {
   background: var(--surface);
   box-shadow: 0 16px 36px var(--shadow);
   z-index: 35;
+}
+
+.project-edit-in-panel {
+  position: relative;
+  top: auto;
+  right: auto;
+  width: 100%;
+  max-height: min(70vh, 400px);
+  overflow-y: auto;
+  margin: 8px 0;
+  box-sizing: border-box;
 }
 
 .project-edit-dock-header {
