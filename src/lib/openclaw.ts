@@ -21,11 +21,13 @@ export async function sendToOpenClawGateway(req: GatewayChatRequest): Promise<Ga
 export async function streamFromOpenClawGateway(
   req: GatewayChatRequest,
   onChunk: (chunk: string) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
+    signal,
   })
   if (!res.ok || !res.body) throw new Error(`stream request failed: ${res.status}`)
 

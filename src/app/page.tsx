@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ChatComposer } from "@/components/chat-composer"
 import { MessageList } from "@/components/message-list"
 import { RunLog, RunPanel } from "@/components/run-panel"
@@ -20,12 +20,12 @@ export default function HomePage() {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings)
   const [runOpen, setRunOpen] = useState(false)
   const [isSending, setIsSending] = useState(false)
-  const [runLogs, setRunLogs] = useState<RunLog[]>([
-    { step: "idle", status: "queued", text: "요청 대기 중" },
-  ])
+  const [runLogs, setRunLogs] = useState<RunLog[]>([{ step: "idle", status: "queued", text: "요청 대기 중" }])
   const [threadPickerOpen, setThreadPickerOpen] = useState(false)
   const [threadQuery, setThreadQuery] = useState("")
   const [streamingDraft, setStreamingDraft] = useState("")
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -84,6 +84,18 @@ export default function HomePage() {
     }
   }
 
+  const onStop = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsSending(false)
+    setStreamingDraft("")
+    setRunLogs([
+      { step: "plan", status: "done", text: "요청을 분석했습니다." },
+      { step: "agent", status: "error", text: "사용자가 생성 중단" },
+      { step: "compose", status: "queued", text: "중단됨" },
+    ])
+  }
+
   const onSend = async (text: string) => {
     if (isSending) return
     setIsSending(true)
@@ -105,6 +117,9 @@ export default function HomePage() {
     setThreads((prev) => prev.map((t) => (t.id === userAdded.id ? userAdded : t)))
 
     try {
+      const controller = new AbortController()
+      abortRef.current = controller
+
       const textOut = await streamFromOpenClawGateway(
         {
           threadId: userAdded.id,
@@ -119,6 +134,7 @@ export default function HomePage() {
             { step: "compose", status: "running", text: "응답 작성 중" },
           ])
         },
+        controller.signal,
       )
 
       const withAssistant = addMessage(userAdded, "assistant", textOut)
@@ -130,6 +146,9 @@ export default function HomePage() {
         { step: "compose", status: "done", text: "응답 생성 완료" },
       ])
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return
+      }
       const withAssistant = addMessage(userAdded, "assistant", "오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
       setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
       setStreamingDraft("")
@@ -139,7 +158,31 @@ export default function HomePage() {
         { step: "compose", status: "queued", text: "오류로 인해 중단됨" },
       ])
     } finally {
+      abortRef.current = null
       setIsSending(false)
+    }
+  }
+
+  const exportThreads = () => {
+    const blob = new Blob([JSON.stringify(threads, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `309agnet-threads-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const importThreads = async (file: File | null) => {
+    if (!file) return
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text) as Thread[]
+      if (!Array.isArray(parsed)) return
+      setThreads(parsed)
+      setActiveThreadId(parsed[0]?.id ?? null)
+    } catch {
+      // ignore invalid files in MVP
     }
   }
 
@@ -154,8 +197,31 @@ export default function HomePage() {
       />
       <section className="flex min-w-0 flex-1 flex-col">
         <TopBar model={settings.model} onRunPanel={() => setRunOpen(true)} />
-        <div className="border-b px-4 py-2 text-xs text-muted-foreground">
-          단축키: <kbd className="rounded border px-1">⌘/Ctrl + K</kbd> 스레드 검색 · <kbd className="rounded border px-1">⌘/Ctrl + N</kbd> 새 스레드
+        <div className="flex items-center justify-between border-b px-4 py-2 text-xs text-muted-foreground">
+          <div>
+            단축키: <kbd className="rounded border px-1">⌘/Ctrl + K</kbd> 스레드 검색 ·{" "}
+            <kbd className="rounded border px-1">⌘/Ctrl + N</kbd> 새 스레드
+          </div>
+          <div className="flex items-center gap-2">
+            {isSending ? (
+              <Button variant="destructive" size="sm" onClick={onStop}>
+                생성 중단
+              </Button>
+            ) : null}
+            <Button variant="outline" size="sm" onClick={exportThreads}>
+              내보내기
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              불러오기
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(e) => importThreads(e.target.files?.[0] ?? null)}
+            />
+          </div>
         </div>
         <MessageList messages={activeThread?.messages ?? []} streamingDraft={streamingDraft} />
         <ChatComposer onSend={onSend} disabled={isSending} />
