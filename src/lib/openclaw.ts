@@ -9,12 +9,15 @@ export interface GatewayChatResponse {
 }
 
 /**
- * MVP integration point for OpenClaw gateway.
- * For now returns a mocked response so the app runs without backend wiring.
+ * Client integration point: hits local Next API route.
+ * Later, `/api/chat` can proxy to OpenClaw Gateway SSE/WebSocket.
  */
 export async function sendToOpenClawGateway(req: GatewayChatRequest): Promise<GatewayChatResponse> {
-  await new Promise((r) => setTimeout(r, 350))
-  return {
-    text: `(MVP Mock) model=${req.model} thread=${req.threadId.slice(0, 8)}: 게이트웨이 연동 준비 완료`,
-  }
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  })
+  if (!res.ok) throw new Error(`gateway request failed: ${res.status}`)
+  return (await res.json()) as GatewayChatResponse
 }
