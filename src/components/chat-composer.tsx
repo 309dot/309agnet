@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 
-export function ChatComposer({ onSend }: { onSend: (text: string) => void }) {
+export function ChatComposer({ onSend, disabled = false }: { onSend: (text: string) => void; disabled?: boolean }) {
   const [text, setText] = useState("")
 
   const submit = () => {
@@ -22,6 +22,7 @@ export function ChatComposer({ onSend }: { onSend: (text: string) => void }) {
           onChange={(e) => setText(e.target.value)}
           placeholder="메시지를 입력하세요. Enter 전송 / Shift+Enter 줄바꿈"
           className="min-h-[52px] resize-none bg-background text-foreground"
+          disabled={disabled}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault()
@@ -29,8 +30,8 @@ export function ChatComposer({ onSend }: { onSend: (text: string) => void }) {
             }
           }}
         />
-        <Button onClick={submit} className="self-end">
-          전송
+        <Button onClick={submit} className="self-end" disabled={disabled}>
+          {disabled ? "전송 중..." : "전송"}
         </Button>
       </div>
     </div>

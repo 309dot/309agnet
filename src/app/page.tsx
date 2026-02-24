@@ -6,6 +6,7 @@ import { MessageList } from "@/components/message-list"
 import { RunPanel } from "@/components/run-panel"
 import { SidebarThreads } from "@/components/sidebar-threads"
 import { TopBar } from "@/components/top-bar"
+import { sendToOpenClawGateway } from "@/lib/openclaw"
 import { addMessage, AppSettings, createThread, loadSettings, loadThreads, saveSettings, saveThreads, Thread } from "@/lib/store"
 
 export default function HomePage() {
@@ -13,6 +14,7 @@ export default function HomePage() {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [settings, setSettings] = useState<AppSettings>({ model: "gpt-5.3-codex", agentPanelEnabled: true, darkMode: true })
   const [runOpen, setRunOpen] = useState(false)
+  const [isSending, setIsSending] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -50,22 +52,30 @@ export default function HomePage() {
     }
   }
 
-  const onSend = (text: string) => {
-    if (!activeThread) {
-      const t = createThread()
-      const withUser = addMessage(t, "user", text)
-      const withAssistant = addMessage(withUser, "assistant", "(MVP) 스트리밍 응답 자리입니다. OpenClaw 게이트웨이 연동 준비 완료.")
-      setThreads((prev) => [withAssistant, ...prev])
-      setActiveThreadId(withAssistant.id)
-      return
+  const onSend = async (text: string) => {
+    if (isSending) return
+    setIsSending(true)
+
+    let targetThread = activeThread
+    if (!targetThread) {
+      const created = createThread()
+      setThreads((prev) => [created, ...prev])
+      setActiveThreadId(created.id)
+      targetThread = created
     }
-    setThreads((prev) =>
-      prev.map((t) => {
-        if (t.id !== activeThread.id) return t
-        const withUser = addMessage(t, "user", text)
-        return addMessage(withUser, "assistant", "(MVP) 스트리밍 응답 자리입니다. OpenClaw 게이트웨이 연동 준비 완료.")
-      }),
-    )
+
+    const userAdded = addMessage(targetThread, "user", text)
+    setThreads((prev) => prev.map((t) => (t.id === userAdded.id ? userAdded : t)))
+
+    const res = await sendToOpenClawGateway({
+      threadId: userAdded.id,
+      message: text,
+      model: settings.model,
+    })
+
+    const withAssistant = addMessage(userAdded, "assistant", res.text)
+    setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
+    setIsSending(false)
   }
 
   return (
@@ -80,7 +90,7 @@ export default function HomePage() {
       <section className="flex min-w-0 flex-1 flex-col">
         <TopBar model={settings.model} onRunPanel={() => setRunOpen(true)} />
         <MessageList messages={activeThread?.messages ?? []} />
-        <ChatComposer onSend={onSend} />
+        <ChatComposer onSend={onSend} disabled={isSending} />
       </section>
       {settings.agentPanelEnabled && <RunPanel open={runOpen} onOpenChange={setRunOpen} />}
     </main>
