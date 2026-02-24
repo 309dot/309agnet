@@ -9,7 +9,7 @@ import { TopBar } from "@/components/top-bar"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { sendToOpenClawGateway } from "@/lib/openclaw"
+import { streamFromOpenClawGateway } from "@/lib/openclaw"
 import { addMessage, AppSettings, createThread, loadSettings, loadThreads, saveSettings, saveThreads, Thread } from "@/lib/store"
 
 const defaultSettings: AppSettings = { model: "gpt-5.3-codex", agentPanelEnabled: true, darkMode: true }
@@ -25,6 +25,7 @@ export default function HomePage() {
   ])
   const [threadPickerOpen, setThreadPickerOpen] = useState(false)
   const [threadQuery, setThreadQuery] = useState("")
+  const [streamingDraft, setStreamingDraft] = useState("")
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -104,14 +105,25 @@ export default function HomePage() {
     setThreads((prev) => prev.map((t) => (t.id === userAdded.id ? userAdded : t)))
 
     try {
-      const res = await sendToOpenClawGateway({
-        threadId: userAdded.id,
-        message: text,
-        model: settings.model,
-      })
+      const textOut = await streamFromOpenClawGateway(
+        {
+          threadId: userAdded.id,
+          message: text,
+          model: settings.model,
+        },
+        (partial) => {
+          setStreamingDraft(partial)
+          setRunLogs([
+            { step: "plan", status: "done", text: "요청을 분석했습니다." },
+            { step: "agent", status: "running", text: "게이트웨이 스트리밍 수신 중..." },
+            { step: "compose", status: "running", text: "응답 작성 중" },
+          ])
+        },
+      )
 
-      const withAssistant = addMessage(userAdded, "assistant", res.text)
+      const withAssistant = addMessage(userAdded, "assistant", textOut)
       setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
+      setStreamingDraft("")
       setRunLogs([
         { step: "plan", status: "done", text: "요청을 분석했습니다." },
         { step: "agent", status: "done", text: "게이트웨이 호출 성공" },
@@ -120,6 +132,7 @@ export default function HomePage() {
     } catch (error) {
       const withAssistant = addMessage(userAdded, "assistant", "오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
       setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
+      setStreamingDraft("")
       setRunLogs([
         { step: "plan", status: "done", text: "요청을 분석했습니다." },
         { step: "agent", status: "error", text: String(error) },
@@ -144,7 +157,7 @@ export default function HomePage() {
         <div className="border-b px-4 py-2 text-xs text-muted-foreground">
           단축키: <kbd className="rounded border px-1">⌘/Ctrl + K</kbd> 스레드 검색 · <kbd className="rounded border px-1">⌘/Ctrl + N</kbd> 새 스레드
         </div>
-        <MessageList messages={activeThread?.messages ?? []} />
+        <MessageList messages={activeThread?.messages ?? []} streamingDraft={streamingDraft} />
         <ChatComposer onSend={onSend} disabled={isSending} />
       </section>
       {settings.agentPanelEnabled && <RunPanel open={runOpen} onOpenChange={setRunOpen} logs={runLogs} />}

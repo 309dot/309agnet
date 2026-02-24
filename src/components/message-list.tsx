@@ -4,7 +4,7 @@ import { Message } from "@/lib/store"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card } from "@/components/ui/card"
 
-export function MessageList({ messages }: { messages: Message[] }) {
+export function MessageList({ messages, streamingDraft }: { messages: Message[]; streamingDraft?: string }) {
   return (
     <ScrollArea className="h-[calc(100vh-13rem)] px-4 py-4">
       {messages.length === 0 ? (
@@ -26,6 +26,13 @@ export function MessageList({ messages }: { messages: Message[] }) {
               </div>
             </div>
           ))}
+          {streamingDraft ? (
+            <div className="flex justify-start">
+              <div className="max-w-[85%] rounded-2xl border bg-card px-4 py-3 text-sm leading-relaxed text-card-foreground">
+                {streamingDraft}
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
     </ScrollArea>
