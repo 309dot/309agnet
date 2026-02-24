@@ -41,6 +41,17 @@ npm run build
 - GitHub: https://github.com/309dot/309agnet
 - Vercel: https://vercel.com/309dots-projects/309agnet
 
+## OpenClaw backend wiring (optional)
+
+If you have a reachable backend/proxy endpoint, set env vars in Vercel:
+
+- `OPENCLAW_CHAT_URL` (non-stream JSON endpoint)
+- `OPENCLAW_CHAT_TOKEN` (optional bearer token)
+- `OPENCLAW_CHAT_STREAM_URL` (SSE endpoint)
+- `OPENCLAW_CHAT_STREAM_TOKEN` (optional bearer token)
+
+When not set, app automatically uses mock mode.
+
 ## Quick QA checklist
 
 1. Create thread

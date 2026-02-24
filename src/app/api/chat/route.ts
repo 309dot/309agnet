@@ -6,9 +6,29 @@ export async function POST(req: Request) {
   const message = body.message ?? ""
   const model = body.model ?? "gpt-5.3-codex"
 
-  // TODO: replace with real OpenClaw Gateway call
-  await new Promise((r) => setTimeout(r, 250))
+  const upstream = process.env.OPENCLAW_CHAT_URL
+  const token = process.env.OPENCLAW_CHAT_TOKEN
 
+  if (upstream) {
+    const upstreamRes = await fetch(upstream, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ threadId, message, model }),
+      cache: "no-store",
+    })
+
+    if (!upstreamRes.ok) {
+      return NextResponse.json({ error: `upstream_error:${upstreamRes.status}` }, { status: 502 })
+    }
+
+    const data = (await upstreamRes.json()) as { text?: string }
+    return NextResponse.json({ text: data.text ?? "" })
+  }
+
+  await new Promise((r) => setTimeout(r, 250))
   return NextResponse.json({
     text: `(MVP Mock API) model=${model} thread=${threadId.slice(0, 8)}: ${message.slice(0, 120)}`,
   })
