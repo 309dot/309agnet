@@ -1,4 +1,5 @@
 const DEFAULT_MOCK_DELAY = 180
+const allowMock = process.env.OPENCLAW_ALLOW_MOCK === "true"
 
 function mockStream(threadId: string, message: string, model: string) {
   const encoder = new TextEncoder()
@@ -53,6 +54,10 @@ export async function POST(req: Request) {
         Connection: "keep-alive",
       },
     })
+  }
+
+  if (!allowMock) {
+    return new Response("upstream_not_configured: set OPENCLAW_CHAT_STREAM_URL", { status: 503 })
   }
 
   // Fallback mock stream keeps app functional without external backend wiring.

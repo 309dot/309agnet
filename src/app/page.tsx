@@ -13,6 +13,7 @@ import { streamFromOpenClawGateway } from "@/lib/openclaw"
 import { addMessage, AppSettings, createThread, loadSettings, loadThreads, saveSettings, saveThreads, Thread } from "@/lib/store"
 
 const defaultSettings: AppSettings = { model: "gpt-5.3-codex", agentPanelEnabled: true, darkMode: true }
+type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
 
 export default function HomePage() {
   const [threads, setThreads] = useState<Thread[]>([])
@@ -24,6 +25,7 @@ export default function HomePage() {
   const [threadPickerOpen, setThreadPickerOpen] = useState(false)
   const [threadQuery, setThreadQuery] = useState("")
   const [streamingDraft, setStreamingDraft] = useState("")
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>("unknown")
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -46,6 +48,19 @@ export default function HomePage() {
     saveSettings(settings)
     document.documentElement.classList.toggle("dark", settings.darkMode)
   }, [settings])
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/health", { cache: "no-store" })
+        if (!res.ok) return
+        const data = (await res.json()) as { mode?: ConnectionMode }
+        setConnectionMode(data.mode ?? "unknown")
+      } catch {
+        setConnectionMode("unknown")
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -149,12 +164,20 @@ export default function HomePage() {
       if (error instanceof DOMException && error.name === "AbortError") {
         return
       }
-      const withAssistant = addMessage(userAdded, "assistant", "오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+
+      const message = String(error)
+      const isConfigError = message.includes("503")
+      const friendly = isConfigError
+        ? "OpenClaw 연동 설정이 아직 안 됐습니다. 관리자에게 OPENCLAW_CHAT_STREAM_URL 설정을 요청해주세요."
+        : "오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+      if (isConfigError) setConnectionMode("misconfigured")
+
+      const withAssistant = addMessage(userAdded, "assistant", friendly)
       setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
       setStreamingDraft("")
       setRunLogs([
         { step: "plan", status: "done", text: "요청을 분석했습니다." },
-        { step: "agent", status: "error", text: String(error) },
+        { step: "agent", status: "error", text: message },
         { step: "compose", status: "queued", text: "오류로 인해 중단됨" },
       ])
     } finally {
@@ -196,7 +219,7 @@ export default function HomePage() {
         onDelete={onDeleteThread}
       />
       <section className="flex min-w-0 flex-1 flex-col">
-        <TopBar model={settings.model} onRunPanel={() => setRunOpen(true)} />
+        <TopBar model={settings.model} onRunPanel={() => setRunOpen(true)} connectionMode={connectionMode} />
         <div className="flex items-center justify-between border-b px-4 py-2 text-xs text-muted-foreground">
           <div>
             단축키: <kbd className="rounded border px-1">⌘/Ctrl + K</kbd> 스레드 검색 ·{" "}

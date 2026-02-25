@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+const allowMock = process.env.OPENCLAW_ALLOW_MOCK === "true"
+
 export async function POST(req: Request) {
   const body = (await req.json()) as { threadId?: string; message?: string; model?: string }
   const threadId = body.threadId ?? "unknown"
@@ -26,6 +28,16 @@ export async function POST(req: Request) {
 
     const data = (await upstreamRes.json()) as { text?: string }
     return NextResponse.json({ text: data.text ?? "" })
+  }
+
+  if (!allowMock) {
+    return NextResponse.json(
+      {
+        error: "upstream_not_configured",
+        hint: "Set OPENCLAW_CHAT_URL (and optional OPENCLAW_CHAT_TOKEN) in Vercel.",
+      },
+      { status: 503 },
+    )
   }
 
   await new Promise((r) => setTimeout(r, 250))

@@ -43,14 +43,17 @@ npm run build
 
 ## OpenClaw backend wiring (optional)
 
-If you have a reachable backend/proxy endpoint, set env vars in Vercel:
+For real OpenClaw replies in Vercel, set env vars:
 
 - `OPENCLAW_CHAT_URL` (non-stream JSON endpoint)
 - `OPENCLAW_CHAT_TOKEN` (optional bearer token)
 - `OPENCLAW_CHAT_STREAM_URL` (SSE endpoint)
 - `OPENCLAW_CHAT_STREAM_TOKEN` (optional bearer token)
 
-When not set, app automatically uses mock mode.
+Optional local/demo fallback:
+- `OPENCLAW_ALLOW_MOCK=true` (enables mock responses when upstream is missing)
+
+Default behavior in production is now **fail-closed** (returns 503 when upstream is not configured), so users don’t mistake mock text for real OpenClaw output.
 
 ## Quick QA checklist
 
