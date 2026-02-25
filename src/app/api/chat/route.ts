@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
-  const allowMock = process.env.OPENCLAW_ALLOW_MOCK === "true"
+  const allowMock = process.env.OPENCLAW_ALLOW_MOCK?.trim().toLowerCase() === "true"
   const body = (await req.json()) as { threadId?: string; message?: string; model?: string }
   const threadId = body.threadId ?? "unknown"
   const message = body.message ?? ""
