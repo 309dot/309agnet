@@ -16,8 +16,22 @@ function normalizeReadableText(input: string) {
 function AssistantText({ content }: { content: string }) {
   const normalized = normalizeReadableText(content)
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none break-words whitespace-pre-wrap [&_h1]:mb-2 [&_h1]:mt-4 [&_h2]:mb-2 [&_h2]:mt-4 [&_h3]:mb-2 [&_h3]:mt-3 [&_li]:my-1 [&_p]:my-2">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalized}</ReactMarkdown>
+    <div className="prose prose-sm dark:prose-invert max-w-none break-words [&_h1]:mb-1 [&_h1]:mt-3 [&_h2]:mb-1 [&_h2]:mt-2.5 [&_h3]:mb-1 [&_h3]:mt-2 [&_p]:my-1 [&_p]:leading-6 [&_ul]:my-1 [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:pl-5 [&_li]:my-0.5 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-3 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[0.9em]">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          code(props) {
+            const { className, children } = props
+            const isBlock = Boolean(className && className.includes("language-"))
+            if (isBlock) {
+              return <code className={className}>{children}</code>
+            }
+            return <code>{children}</code>
+          },
+        }}
+      >
+        {normalized}
+      </ReactMarkdown>
     </div>
   )
 }
