@@ -38,11 +38,11 @@ function AssistantText({ content }: { content: string }) {
 
 export function MessageList({ messages, streamingDraft }: { messages: Message[]; streamingDraft?: string }) {
   return (
-    <ScrollArea className="h-full py-4">
+    <ScrollArea className="h-full">
       {messages.length === 0 ? (
         <div className="mx-auto max-w-3xl px-2 text-center text-sm text-muted-foreground">첫 메시지를 입력해 대화를 시작하세요.</div>
       ) : (
-        <div className="mx-auto flex max-w-3xl flex-col gap-3 px-2">
+        <div className="mx-auto flex max-w-3xl flex-col gap-3">
           {messages.map((m) => (
             <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               {m.role === "user" ? (
