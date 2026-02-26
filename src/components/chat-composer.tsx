@@ -26,7 +26,7 @@ export function ChatComposer({ onSend, disabled = false }: { onSend: (text: stri
   }
 
   return (
-    <div className="p-3">
+    <div className="sticky bottom-0 z-50 p-3">
       <div className="mx-auto flex max-w-3xl items-end gap-2">
         <Textarea
           ref={textareaRef}
@@ -46,7 +46,7 @@ export function ChatComposer({ onSend, disabled = false }: { onSend: (text: stri
             }
           }}
         />
-        <Button onClick={submit} disabled={disabled}>
+        <Button onClick={submit} disabled={disabled} className="h-10 shrink-0 self-end px-4">
           {disabled ? "전송 중..." : "전송"}
         </Button>
       </div>
