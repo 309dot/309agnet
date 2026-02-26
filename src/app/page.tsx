@@ -22,7 +22,7 @@ import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/li
 
 type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
 const FIXED_MODEL = "gpt-5.3-codex"
-const RESPONSE_STYLE_PREFIX = "응답 형식 지침: 읽기 쉽게 제목/소제목, 핵심 bullet, 필요한 이모지(과하지 않게), 짧은 단락으로 정리해서 답해줘.\n\n사용자 요청:\n"
+const RESPONSE_STYLE_PREFIX = "응답 형식 지침: 읽기 쉽게 제목/소제목, 핵심 bullet, 짧은 단락으로 정리해주고, 분위기를 부드럽게 만드는 이모지를 자연스럽게(과하지 않게) 섞어줘. 딱딱한 문장보다 친근한 톤으로 답해줘.\n\n사용자 요청:\n"
 
 export default function HomePage() {
   const [threads, setThreads] = useState<Thread[]>([])
