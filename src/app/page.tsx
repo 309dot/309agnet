@@ -249,7 +249,7 @@ export default function HomePage() {
   }
 
   return (
-    <main className="flex h-dvh bg-background text-foreground">
+    <main className="flex h-dvh overflow-hidden bg-background text-foreground">
       {sidebarOpen && !isMobile ? (
         <SidebarThreads
           threads={threads}
@@ -275,7 +275,7 @@ export default function HomePage() {
         </SheetContent>
       </Sheet>
 
-      <section className="flex min-w-0 flex-1 flex-col">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar
           model={FIXED_MODEL}
           onRunPanel={() => setRunOpen(true)}
@@ -309,7 +309,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <section className="min-h-0 flex-1">
+        <section className="min-h-0 flex-1 overflow-hidden pb-24">
           <MessageList messages={activeThread?.messages ?? []} streamingDraft={streamingDraft} />
         </section>
         <ChatComposer onSend={onSend} disabled={isSending} />
