@@ -4,21 +4,20 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { ChatComposer } from "@/components/chat-composer"
 import { MessageList } from "@/components/message-list"
 import { RunLog, RunPanel } from "@/components/run-panel"
-import { SidebarThreads } from "@/components/sidebar-threads"
 import { TopBar } from "@/components/top-bar"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { streamFromOpenClawGateway } from "@/lib/openclaw"
-import { addMessage, AppSettings, createThread, loadSettings, loadThreads, saveSettings, saveThreads, Thread } from "@/lib/store"
+import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/lib/store"
 
-const defaultSettings: AppSettings = { model: "gpt-5.3-codex", agentPanelEnabled: true, darkMode: true }
 type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
+const FIXED_MODEL = "gpt-5.3-codex"
 
 export default function HomePage() {
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
-  const [settings, setSettings] = useState<AppSettings>(defaultSettings)
+  const [hydrated, setHydrated] = useState(false)
   const [runOpen, setRunOpen] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [runLogs, setRunLogs] = useState<RunLog[]>([{ step: "idle", status: "queued", text: "요청 대기 중" }])
@@ -30,24 +29,22 @@ export default function HomePage() {
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const loadedThreads = loadThreads()
-      const loadedSettings = loadSettings()
+    const loadedThreads = loadThreads()
+    if (loadedThreads.length > 0) {
       setThreads(loadedThreads)
-      setSettings(loadedSettings)
-      setActiveThreadId(loadedThreads[0]?.id ?? null)
-    }, 0)
-    return () => clearTimeout(timer)
+      setActiveThreadId(loadedThreads[0].id)
+    } else {
+      const first = createThread()
+      setThreads([first])
+      setActiveThreadId(first.id)
+    }
+    setHydrated(true)
   }, [])
 
   useEffect(() => {
+    if (!hydrated) return
     saveThreads(threads)
-  }, [threads])
-
-  useEffect(() => {
-    saveSettings(settings)
-    document.documentElement.classList.toggle("dark", settings.darkMode)
-  }, [settings])
+  }, [threads, hydrated])
 
   useEffect(() => {
     void (async () => {
@@ -92,11 +89,11 @@ export default function HomePage() {
   }
 
   const onDeleteThread = (threadId: string) => {
-    setThreads((prev) => prev.filter((t) => t.id !== threadId))
-    if (activeThreadId === threadId) {
-      const next = threads.find((t) => t.id !== threadId)
-      setActiveThreadId(next?.id ?? null)
-    }
+    setThreads((prev) => {
+      const nextList = prev.filter((t) => t.id !== threadId)
+      if (activeThreadId === threadId) setActiveThreadId(nextList[0]?.id ?? null)
+      return nextList
+    })
   }
 
   const onStop = () => {
@@ -139,7 +136,7 @@ export default function HomePage() {
         {
           threadId: userAdded.id,
           message: text,
-          model: settings.model,
+          model: FIXED_MODEL,
         },
         (partial) => {
           setStreamingDraft(partial)
@@ -161,10 +158,7 @@ export default function HomePage() {
         { step: "compose", status: "done", text: "응답 생성 완료" },
       ])
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        return
-      }
-
+      if (error instanceof DOMException && error.name === "AbortError") return
       const message = String(error)
       const isConfigError = message.includes("503")
       const friendly = isConfigError
@@ -201,7 +195,7 @@ export default function HomePage() {
     try {
       const text = await file.text()
       const parsed = JSON.parse(text) as Thread[]
-      if (!Array.isArray(parsed)) return
+      if (!Array.isArray(parsed) || parsed.length === 0) return
       setThreads(parsed)
       setActiveThreadId(parsed[0]?.id ?? null)
     } catch {
@@ -210,46 +204,47 @@ export default function HomePage() {
   }
 
   return (
-    <main className="flex h-screen bg-background text-foreground">
-      <SidebarThreads
-        threads={threads}
-        activeThreadId={activeThreadId}
-        onSelect={setActiveThreadId}
-        onCreate={onCreateThread}
-        onDelete={onDeleteThread}
+    <main className="flex h-dvh flex-col bg-background text-foreground">
+      <TopBar
+        model={FIXED_MODEL}
+        onRunPanel={() => setRunOpen(true)}
+        onOpenThreads={() => setThreadPickerOpen(true)}
+        onCreateThread={onCreateThread}
+        connectionMode={connectionMode}
       />
-      <section className="flex min-w-0 flex-1 flex-col">
-        <TopBar model={settings.model} onRunPanel={() => setRunOpen(true)} connectionMode={connectionMode} />
-        <div className="flex items-center justify-between border-b px-4 py-2 text-xs text-muted-foreground">
-          <div>
-            단축키: <kbd className="rounded border px-1">⌘/Ctrl + K</kbd> 스레드 검색 ·{" "}
-            <kbd className="rounded border px-1">⌘/Ctrl + N</kbd> 새 스레드
-          </div>
-          <div className="flex items-center gap-2">
-            {isSending ? (
-              <Button variant="destructive" size="sm" onClick={onStop}>
-                생성 중단
-              </Button>
-            ) : null}
-            <Button variant="outline" size="sm" onClick={exportThreads}>
-              내보내기
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-              불러오기
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/json"
-              className="hidden"
-              onChange={(e) => importThreads(e.target.files?.[0] ?? null)}
-            />
-          </div>
+
+      <div className="flex items-center justify-between border-b px-3 py-2 text-xs text-muted-foreground md:px-4">
+        <div className="truncate">
+          <kbd className="rounded border px-1">⌘/Ctrl + K</kbd> 스레드 검색 · <kbd className="rounded border px-1">⌘/Ctrl + N</kbd> 새 스레드
         </div>
+        <div className="ml-2 flex items-center gap-2">
+          {isSending ? (
+            <Button variant="destructive" size="sm" onClick={onStop}>
+              중단
+            </Button>
+          ) : null}
+          <Button variant="outline" size="sm" onClick={exportThreads}>
+            내보내기
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+            불러오기
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            className="hidden"
+            onChange={(e) => importThreads(e.target.files?.[0] ?? null)}
+          />
+        </div>
+      </div>
+
+      <section className="min-h-0 flex-1">
         <MessageList messages={activeThread?.messages ?? []} streamingDraft={streamingDraft} />
-        <ChatComposer onSend={onSend} disabled={isSending} />
       </section>
-      {settings.agentPanelEnabled && <RunPanel open={runOpen} onOpenChange={setRunOpen} logs={runLogs} />}
+      <ChatComposer onSend={onSend} disabled={isSending} />
+
+      <RunPanel open={runOpen} onOpenChange={setRunOpen} logs={runLogs} />
 
       <Dialog open={threadPickerOpen} onOpenChange={setThreadPickerOpen}>
         <DialogContent>
@@ -267,18 +262,22 @@ export default function HomePage() {
               <p className="text-sm text-muted-foreground">검색 결과가 없습니다.</p>
             ) : (
               filteredThreads.map((t) => (
-                <Button
-                  key={t.id}
-                  variant={t.id === activeThreadId ? "secondary" : "outline"}
-                  className="w-full justify-start text-left"
-                  onClick={() => {
-                    setActiveThreadId(t.id)
-                    setThreadPickerOpen(false)
-                    setThreadQuery("")
-                  }}
-                >
-                  <span className="truncate">{t.title}</span>
-                </Button>
+                <div key={t.id} className="flex items-center gap-2">
+                  <Button
+                    variant={t.id === activeThreadId ? "secondary" : "outline"}
+                    className="w-full justify-start text-left"
+                    onClick={() => {
+                      setActiveThreadId(t.id)
+                      setThreadPickerOpen(false)
+                      setThreadQuery("")
+                    }}
+                  >
+                    <span className="truncate">{t.title}</span>
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => onDeleteThread(t.id)} aria-label="스레드 삭제">
+                    ×
+                  </Button>
+                </div>
               ))
             )}
           </div>

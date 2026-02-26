@@ -36,17 +36,73 @@
       "testStrategy": "dry-run 결과와 실제 set-status 전환 확인",
       "priority": "high",
       "dependencies": [],
-      "status": "done",
+      "status": "pending",
       "assignee": "orchestrator",
       "subtasks": [],
-      "updatedAt": "2026-02-26T05:58:10.221Z"
+      "updatedAt": "2026-02-26T05:58:30.354Z"
+    },
+    {
+      "id": "4",
+      "title": "thread 저장 이슈 원인 분석 및 수정",
+      "description": "초기 hydrate 이전 localStorage overwrite 문제로 스레드 유실되는 이슈 수정",
+      "details": "hydrated 플래그 도입, 최초 로드 후에만 saveThreads 실행",
+      "testStrategy": "새 스레드 생성 후 새로고침해도 유지 확인",
+      "priority": "high",
+      "dependencies": [],
+      "status": "done",
+      "assignee": "researcher",
+      "subtasks": [],
+      "updatedAt": "2026-02-26T07:43:33.936775Z"
+    },
+    {
+      "id": "5",
+      "title": "설정 기능 제거 및 시스템 테마 고정",
+      "description": "/settings 기능 제거, 테마는 시스템 선호도 자동 반영으로 고정",
+      "details": "settings 페이지 redirect, layout에서 prefers-color-scheme 기반 dark class 적용",
+      "testStrategy": "/settings 접근 시 / 리다이렉트 및 시스템 다크/라이트 반영 확인",
+      "priority": "high",
+      "dependencies": [],
+      "status": "done",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-02-26T07:43:33.936775Z"
+    },
+    {
+      "id": "6",
+      "title": "모바일 친화 + 사이드바 상시 닫힘 UX",
+      "description": "항상 닫힌 사이드바 구조로 전환하고 스레드 전환은 다이얼로그로 통일",
+      "details": "SidebarThreads 제거, TopBar에 스레드/새로 버튼 추가, h-dvh 레이아웃 정리",
+      "testStrategy": "모바일 폭에서 채팅/입력창/스레드 전환 동작 확인",
+      "priority": "high",
+      "dependencies": [],
+      "status": "done",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-02-26T07:43:33.936775Z"
+    },
+    {
+      "id": "7",
+      "title": "검증 및 배포 반영",
+      "description": "lint/build/런타임 검증 후 launchd 재기동으로 반영",
+      "details": "npm run lint && npm run build, launchctl kickstart app3090",
+      "testStrategy": "https://app.309designlab.com/api/health 200 및 connected 확인",
+      "priority": "high",
+      "dependencies": [
+        "4",
+        "5",
+        "6"
+      ],
+      "status": "done",
+      "assignee": "verifier",
+      "subtasks": [],
+      "updatedAt": "2026-02-26T07:43:33.936775Z"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-02-26T05:58:10.222Z",
-    "taskCount": 3,
-    "completedCount": 1,
+    "lastModified": "2026-02-26T07:43:33.936775Z",
+    "taskCount": 7,
+    "completedCount": 4,
     "tags": [
       "master"
     ]

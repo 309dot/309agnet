@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
@@ -16,17 +15,21 @@ const modeLabel: Record<ConnectionMode, string> = {
 export function TopBar({
   model,
   onRunPanel,
+  onOpenThreads,
+  onCreateThread,
   connectionMode,
 }: {
   model: string
   onRunPanel: () => void
+  onOpenThreads: () => void
+  onCreateThread: () => void
   connectionMode: ConnectionMode
 }) {
   return (
-    <header className="flex items-center justify-between border-b px-4 py-3">
-      <div className="flex items-center gap-2">
-        <h1 className="text-sm font-semibold tracking-tight">309agnet</h1>
-        <Badge variant="secondary" className="text-xs text-foreground">
+    <header className="flex items-center justify-between border-b px-3 py-2 md:px-4 md:py-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <h1 className="truncate text-sm font-semibold tracking-tight">309agnet</h1>
+        <Badge variant="secondary" className="hidden text-xs text-foreground sm:inline-flex">
           {model}
         </Badge>
         <Badge
@@ -37,11 +40,14 @@ export function TopBar({
         </Badge>
       </div>
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onRunPanel}>
-          Run 패널
+        <Button variant="outline" size="sm" onClick={onOpenThreads}>
+          스레드
         </Button>
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/settings">설정</Link>
+        <Button variant="outline" size="sm" onClick={onCreateThread}>
+          새로
+        </Button>
+        <Button variant="outline" size="sm" onClick={onRunPanel}>
+          Run
         </Button>
       </div>
     </header>
