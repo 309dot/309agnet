@@ -78,6 +78,34 @@ Notes:
 - If `assignee` is missing, keyword rules in `agent-routing.json` are used.
 - Dispatch uses `openclaw agent --agent <id> --session-id tm_task_<id> ...`.
 
+## launchd 운영 (macOS)
+
+`com.309agent.app3090` 서비스는 `RunAtLoad + KeepAlive` 조합으로 부팅/로그인 시 자동 기동됩니다.
+
+로그 증가 방지를 위해 15분 간격 롤링 에이전트를 함께 운영합니다.
+
+- 스크립트: `scripts/logrotate-app3090.sh`
+- LaunchAgent 템플릿: `scripts/com.309agent.app3090.logrotate.plist`
+- 기본 정책: 파일당 20MB 초과 시 gzip 롤링, 최대 7개 보관
+
+배포 순서:
+
+```bash
+cp scripts/logrotate-app3090.sh /Users/309agent/.openclaw/workspace-orchestrator/.openclaw/
+chmod +x /Users/309agent/.openclaw/workspace-orchestrator/.openclaw/logrotate-app3090.sh
+cp scripts/com.309agent.app3090.logrotate.plist ~/Library/LaunchAgents/
+launchctl bootout gui/$(id -u)/com.309agent.app3090.logrotate >/dev/null 2>&1 || true
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.309agent.app3090.logrotate.plist
+launchctl kickstart -k gui/$(id -u)/com.309agent.app3090.logrotate
+```
+
+재기동 점검:
+
+```bash
+launchctl kickstart -k gui/$(id -u)/com.309agent.app3090
+curl -i http://127.0.0.1:3090
+```
+
 ## Quick QA checklist
 
 1. Create thread
