@@ -55,6 +55,29 @@ Optional local/demo fallback:
 
 Default behavior in production is now **fail-closed** (returns 503 when upstream is not configured), so users don’t mistake mock text for real OpenClaw output.
 
+## Task Master + OpenClaw agent dispatch
+
+Installed package: `task-master-ai`
+
+Commands:
+
+```bash
+npm run tm               # Task Master CLI
+npm run tm:dispatch:dry  # show which pending tasks map to which agent
+npm run tm:dispatch      # dispatch pending tasks to agents, mark in-progress
+```
+
+Routing file:
+- `.taskmaster/agent-routing.json`
+
+Task storage:
+- `.taskmaster/tasks/tasks.json`
+
+Notes:
+- `assignee` field on each task is used first.
+- If `assignee` is missing, keyword rules in `agent-routing.json` are used.
+- Dispatch uses `openclaw agent --agent <id> --session-id tm_task_<id> ...`.
+
 ## Quick QA checklist
 
 1. Create thread

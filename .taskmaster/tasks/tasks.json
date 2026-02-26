@@ -1,0 +1,47 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Cloudflare tunnel 안정화 모니터링",
+      "description": "app.309designlab.com 터널 상태, 응답 코드, 재시작 절차 점검",
+      "details": "헬스체크 로그 확인, 5xx 발생 시 원인 분류 및 복구 절차 문서화",
+      "testStrategy": "10분 간격으로 public/local 200 확인",
+      "priority": "high",
+      "dependencies": [],
+      "status": "pending",
+      "assignee": "orchestrator",
+      "subtasks": []
+    },
+    {
+      "id": 2,
+      "title": "309agnet 운영 모드 최적화",
+      "description": "next start + launchd 운영 구성 점검 및 로그 롤링 정책 추가",
+      "details": "로그 크기 증가 방지, 재기동 시나리오 정리",
+      "testStrategy": "재부팅 후 서비스 자동기동 및 200 응답 확인",
+      "priority": "medium",
+      "dependencies": [1],
+      "status": "pending",
+      "assignee": "orchestrator",
+      "subtasks": []
+    },
+    {
+      "id": 3,
+      "title": "Task Master -> OpenClaw 에이전트 디스패처 검증",
+      "description": "pending 작업을 에이전트에게 자동 분배하는 디스패처 스크립트 검증",
+      "details": "dry-run/실행 모드 모두 테스트",
+      "testStrategy": "dry-run 결과와 실제 set-status 전환 확인",
+      "priority": "high",
+      "dependencies": [],
+      "status": "pending",
+      "assignee": "orchestrator",
+      "subtasks": []
+    }
+  ],
+  "metadata": {
+    "projectName": "309agnet",
+    "totalTasks": 3,
+    "sourceFile": ".taskmaster/tasks/tasks.json",
+    "generatedAt": "2026-02-26T14:10:00+09:00",
+    "version": "1.0.0"
+  }
+}

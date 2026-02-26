@@ -1,0 +1,8 @@
+{
+  "defaultAgent": "orchestrator",
+  "routes": [
+    { "match": "cloudflare|tunnel|dns|infra", "agent": "orchestrator" },
+    { "match": "next|frontend|ui|react", "agent": "orchestrator" },
+    { "match": "task master|dispatcher|automation", "agent": "orchestrator" }
+  ]
+}
