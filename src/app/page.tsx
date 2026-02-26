@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { streamFromOpenClawGateway } from "@/lib/openclaw"
 import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/lib/store"
 
@@ -26,6 +27,7 @@ export default function HomePage() {
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [hydrated, setHydrated] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [runOpen, setRunOpen] = useState(false)
   const [isSending, setIsSending] = useState(false)
@@ -56,6 +58,13 @@ export default function HomePage() {
     if (!hydrated) return
     saveThreads(threads)
   }, [threads, hydrated])
+
+  useEffect(() => {
+    const update = () => setIsMobile(window.innerWidth < 768)
+    update()
+    window.addEventListener("resize", update)
+    return () => window.removeEventListener("resize", update)
+  }, [])
 
   useEffect(() => {
     void (async () => {
@@ -116,6 +125,11 @@ export default function HomePage() {
     const t = createThread("새 채팅", "orchestrator")
     setThreads((prev) => [t, ...prev])
     setActiveThreadId(t.id)
+  }
+
+  const onSelectThread = (threadId: string) => {
+    setActiveThreadId(threadId)
+    if (isMobile) setSidebarOpen(false)
   }
 
   const onDeleteThread = (threadId: string) => {
@@ -235,15 +249,30 @@ export default function HomePage() {
 
   return (
     <main className="flex h-dvh bg-background text-foreground">
-      {sidebarOpen ? (
+      {sidebarOpen && !isMobile ? (
         <SidebarThreads
           threads={threads}
           activeThreadId={activeThreadId}
-          onSelect={setActiveThreadId}
+          onSelect={onSelectThread}
           onCreate={onCreateThread}
           onDelete={onDeleteThread}
         />
       ) : null}
+
+      <Sheet open={sidebarOpen && isMobile} onOpenChange={(open) => setSidebarOpen(open)}>
+        <SheetContent side="left" className="p-0 md:hidden">
+          <SheetHeader className="sr-only">
+            <SheetTitle>채팅 사이드바</SheetTitle>
+          </SheetHeader>
+          <SidebarThreads
+            threads={threads}
+            activeThreadId={activeThreadId}
+            onSelect={onSelectThread}
+            onCreate={onCreateThread}
+            onDelete={onDeleteThread}
+          />
+        </SheetContent>
+      </Sheet>
 
       <section className="flex min-w-0 flex-1 flex-col">
         <TopBar
