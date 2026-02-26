@@ -309,7 +309,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <section className="min-h-0 flex-1 overflow-hidden pb-24">
+        <section className="min-h-0 flex-1 overflow-hidden pb-[13px]">
           <MessageList messages={activeThread?.messages ?? []} streamingDraft={streamingDraft} />
         </section>
         <ChatComposer onSend={onSend} disabled={isSending} />
