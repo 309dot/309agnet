@@ -1,8 +1,9 @@
 {
   "defaultAgent": "orchestrator",
   "routes": [
-    { "match": "cloudflare|tunnel|dns|infra", "agent": "orchestrator" },
-    { "match": "next|frontend|ui|react", "agent": "orchestrator" },
-    { "match": "task master|dispatcher|automation", "agent": "orchestrator" }
+    { "match": "cloudflare|tunnel|dns|infra|runbook", "agent": "verifier" },
+    { "match": "next|frontend|ui|react|css|font", "agent": "coder" },
+    { "match": "research|analysis|investigate|benchmark", "agent": "researcher" },
+    { "match": "task master|dispatcher|automation|pipeline", "agent": "orchestrator" }
   ]
 }
