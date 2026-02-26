@@ -26,7 +26,7 @@ export function ChatComposer({ onSend, disabled = false }: { onSend: (text: stri
   }
 
   return (
-    <div className="sticky bottom-0 z-50 p-3">
+    <div className="fixed inset-x-0 bottom-0 z-50 p-3">
       <div className="mx-auto flex max-w-3xl items-end gap-2">
         <Textarea
           ref={textareaRef}
@@ -36,8 +36,8 @@ export function ChatComposer({ onSend, disabled = false }: { onSend: (text: stri
             setText(e.target.value)
             resize()
           }}
-          placeholder="메시지를 입력하세요. Enter 전송 / Shift+Enter 줄바꿈"
-          className="h-10 min-h-10 resize-none bg-transparent text-foreground"
+          placeholder="메세지를 입력하세요."
+          className="h-10 min-h-10 resize-none bg-background text-foreground"
           disabled={disabled}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
