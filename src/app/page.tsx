@@ -21,8 +21,9 @@ import { streamFromOpenClawGateway } from "@/lib/openclaw"
 import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/lib/store"
 
 type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
+type AuthSession = { id: string; deviceName: string; userAgent: string; createdAt: string; lastSeenAt: string }
 const FIXED_MODEL = "gpt-5.3-codex"
-const RESPONSE_STYLE_PREFIX = "응답 형식 지침: 읽기 쉽게 제목/소제목, 핵심 bullet, 짧은 단락으로 정리해주고, 분위기를 부드럽게 만드는 이모지를 자연스럽게(과하지 않게) 섞어줘. 딱딱한 문장보다 친근한 톤으로 답해줘.\n\n사용자 요청:\n"
+const RESPONSE_STYLE_PREFIX = "응답 형식 지침: 가독성 좋게 문단을 충분히 나눠서 작성해줘. 제목/머리말/부머리말/본문 구조를 쓰고, 목록은 bullet 또는 번호 목록을 사용하되 번호 목록은 반드시 '1) 2) 3)' 형식으로 써줘. 필요하면 간단한 표도 활용해줘. 이모지는 자연스럽게(과하지 않게) 사용하고 친근한 톤으로 답해줘.\n\n사용자 요청:\n"
 
 export default function HomePage() {
   const [threads, setThreads] = useState<Thread[]>([])
@@ -39,6 +40,11 @@ export default function HomePage() {
   const [threadSort, setThreadSort] = useState("recent")
   const [streamingDraft, setStreamingDraft] = useState("")
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>("unknown")
+  const [authed, setAuthed] = useState(false)
+  const [accessCode, setAccessCode] = useState("")
+  const [deviceName, setDeviceName] = useState("")
+  const [devicesOpen, setDevicesOpen] = useState(false)
+  const [sessions, setSessions] = useState<AuthSession[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -59,6 +65,17 @@ export default function HomePage() {
     if (!hydrated) return
     saveThreads(threads)
   }, [threads, hydrated])
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" })
+        setAuthed(res.ok)
+      } catch {
+        setAuthed(false)
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     const update = () => setIsMobile(window.innerWidth < 768)
@@ -248,6 +265,51 @@ export default function HomePage() {
     }
   }
 
+  const login = async () => {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: accessCode, deviceName: deviceName || "My device" }),
+    })
+    setAuthed(res.ok)
+    if (!res.ok) alert("접근 코드가 맞지 않아요.")
+  }
+
+  const fetchSessions = async () => {
+    const res = await fetch("/api/auth/sessions", { cache: "no-store" })
+    if (!res.ok) return
+    const data = (await res.json()) as { sessions: AuthSession[] }
+    setSessions(data.sessions)
+  }
+
+  const revokeSession = async (sessionId: string) => {
+    const res = await fetch("/api/auth/sessions", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    })
+    if (res.ok) void fetchSessions()
+  }
+
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" })
+    setAuthed(false)
+  }
+
+  if (!authed) {
+    return (
+      <main className="flex h-dvh items-center justify-center bg-background p-4">
+        <div className="w-full max-w-sm space-y-3 rounded-lg border p-4">
+          <h1 className="text-lg font-semibold">🔒 개인 접근</h1>
+          <p className="text-sm text-muted-foreground">접근 코드로 로그인하세요.</p>
+          <Input placeholder="디바이스 이름 (선택)" value={deviceName} onChange={(e) => setDeviceName(e.target.value)} />
+          <Input placeholder="접근 코드" type="password" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} />
+          <Button className="w-full" onClick={() => void login()}>로그인</Button>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="flex h-dvh overflow-hidden bg-background text-foreground">
       {sidebarOpen && !isMobile ? (
@@ -279,6 +341,10 @@ export default function HomePage() {
         <TopBar
           model={FIXED_MODEL}
           onRunPanel={() => setRunOpen(true)}
+          onOpenDevices={() => {
+            setDevicesOpen(true)
+            void fetchSessions()
+          }}
           onToggleSidebar={() => setSidebarOpen((v) => !v)}
           connectionMode={connectionMode}
         />
@@ -309,7 +375,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <section className="min-h-0 flex-1 overflow-hidden pb-10">
+        <section className="min-h-0 flex-1 overflow-hidden pb-[52px]">
           <MessageList messages={activeThread?.messages ?? []} streamingDraft={streamingDraft} />
         </section>
         <ChatComposer onSend={onSend} disabled={isSending} />
@@ -381,6 +447,29 @@ export default function HomePage() {
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={devicesOpen} onOpenChange={setDevicesOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>디바이스 관리</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-80 space-y-2 overflow-auto">
+            {sessions.map((s) => (
+              <div key={s.id} className="rounded-md border p-2 text-sm">
+                <p className="font-medium">{s.deviceName}</p>
+                <p className="text-xs text-muted-foreground">최근 활동: {new Date(s.lastSeenAt).toLocaleString()}</p>
+                <p className="truncate text-xs text-muted-foreground">{s.userAgent}</p>
+                <div className="mt-2 flex justify-end">
+                  <Button variant="destructive" size="sm" onClick={() => void revokeSession(s.id)}>
+                    강제 로그아웃
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <Button variant="outline" onClick={() => void logout()}>내 기기 로그아웃</Button>
         </DialogContent>
       </Dialog>
     </main>

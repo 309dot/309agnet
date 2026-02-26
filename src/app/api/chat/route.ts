@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server"
+import { requireSession } from "@/lib/auth"
 
 export async function POST(req: Request) {
+  try {
+    await requireSession()
+  } catch {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   const allowMock = process.env.OPENCLAW_ALLOW_MOCK?.trim().toLowerCase() === "true"
   const body = (await req.json()) as { threadId?: string; message?: string; model?: string }
   const threadId = body.threadId ?? "unknown"

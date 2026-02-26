@@ -1,3 +1,5 @@
+import { requireSession } from "@/lib/auth"
+
 const DEFAULT_MOCK_DELAY = 180
 
 function mockStream(threadId: string, message: string, model: string) {
@@ -22,6 +24,12 @@ function mockStream(threadId: string, message: string, model: string) {
 }
 
 export async function POST(req: Request) {
+  try {
+    await requireSession()
+  } catch {
+    return new Response("unauthorized", { status: 401 })
+  }
+
   const allowMock = process.env.OPENCLAW_ALLOW_MOCK?.trim().toLowerCase() === "true"
   const body = (await req.json()) as { threadId?: string; message?: string; model?: string }
   const threadId = body.threadId ?? "unknown"
