@@ -278,8 +278,6 @@ export default function HomePage() {
         <TopBar
           model={FIXED_MODEL}
           onRunPanel={() => setRunOpen(true)}
-          onOpenThreads={() => setChatDialogOpen(true)}
-          onCreateThread={onCreateThread}
           onToggleSidebar={() => setSidebarOpen((v) => !v)}
           connectionMode={connectionMode}
         />
