@@ -26,7 +26,7 @@ export function ChatComposer({ onSend, disabled = false }: { onSend: (text: stri
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 p-3">
+    <div className="fixed inset-x-0 bottom-0 z-50 bg-gradient-to-b from-background/0 via-background/75 to-background p-3">
       <div className="mx-auto flex max-w-3xl items-end gap-2">
         <Textarea
           ref={textareaRef}
