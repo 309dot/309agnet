@@ -5,10 +5,19 @@ import remarkGfm from "remark-gfm"
 import { Message } from "@/lib/store"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
+function normalizeReadableText(input: string) {
+  return input
+    .replace(/\s*([•\-]\s+)/g, "\n$1")
+    .replace(/([.!?다요])\s+(?=[A-Z가-힣0-9])/g, "$1\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
 function AssistantText({ content }: { content: string }) {
+  const normalized = normalizeReadableText(content)
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none break-words [&_h1]:mb-2 [&_h1]:mt-4 [&_h2]:mb-2 [&_h2]:mt-4 [&_h3]:mb-2 [&_h3]:mt-3 [&_li]:my-1 [&_p]:my-2">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+    <div className="prose prose-sm dark:prose-invert max-w-none break-words whitespace-pre-wrap [&_h1]:mb-2 [&_h1]:mt-4 [&_h2]:mb-2 [&_h2]:mt-4 [&_h3]:mb-2 [&_h3]:mt-3 [&_li]:my-1 [&_p]:my-2">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalized}</ReactMarkdown>
     </div>
   )
 }
