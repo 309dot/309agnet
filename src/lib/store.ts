@@ -13,6 +13,7 @@ export interface Thread {
   createdAt: string
   updatedAt: string
   messages: Message[]
+  agent?: string
 }
 
 export interface AppSettings {
@@ -67,7 +68,7 @@ export function saveSettings(settings: AppSettings): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
 }
 
-export function createThread(name = "새 스레드"): Thread {
+export function createThread(name = "새 채팅", agent = "orchestrator"): Thread {
   const now = new Date().toISOString()
   return {
     id: uid("thread"),
@@ -75,6 +76,7 @@ export function createThread(name = "새 스레드"): Thread {
     createdAt: now,
     updatedAt: now,
     messages: [],
+    agent,
   }
 }
 

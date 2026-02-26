@@ -1,5 +1,6 @@
 "use client"
 
+import { Menu } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
@@ -17,17 +18,22 @@ export function TopBar({
   onRunPanel,
   onOpenThreads,
   onCreateThread,
+  onToggleSidebar,
   connectionMode,
 }: {
   model: string
   onRunPanel: () => void
   onOpenThreads: () => void
   onCreateThread: () => void
+  onToggleSidebar: () => void
   connectionMode: ConnectionMode
 }) {
   return (
     <header className="flex items-center justify-between border-b px-3 py-2 md:px-4 md:py-3">
       <div className="flex min-w-0 items-center gap-2">
+        <Button variant="outline" size="icon" onClick={onToggleSidebar} aria-label="사이드바 토글">
+          <Menu className="size-4" />
+        </Button>
         <h1 className="truncate text-sm font-semibold tracking-tight">309agnet</h1>
         <Badge variant="secondary" className="hidden text-xs text-foreground sm:inline-flex">
           {model}
@@ -41,7 +47,7 @@ export function TopBar({
       </div>
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={onOpenThreads}>
-          스레드
+          채팅
         </Button>
         <Button variant="outline" size="sm" onClick={onCreateThread}>
           새로

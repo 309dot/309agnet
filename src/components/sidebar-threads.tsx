@@ -1,5 +1,6 @@
 "use client"
 
+import { Plus, Trash2 } from "lucide-react"
 import { Thread } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -20,16 +21,17 @@ export function SidebarThreads({
 }) {
   return (
     <aside className="flex h-full w-72 flex-col border-r bg-muted/20">
-      <div className="p-3">
-        <Button className="w-full" onClick={onCreate}>
-          + 새 스레드
+      <div className="flex items-center justify-between p-3">
+        <p className="text-sm font-medium">채팅</p>
+        <Button variant="outline" size="icon" onClick={onCreate} aria-label="채팅 생성">
+          <Plus className="size-4" />
         </Button>
       </div>
       <Separator />
       <ScrollArea className="flex-1 p-2">
         <div className="space-y-1">
           {threads.length === 0 ? (
-            <p className="px-2 py-4 text-sm text-muted-foreground">스레드가 없습니다.</p>
+            <p className="px-2 py-4 text-sm text-muted-foreground">채팅이 없습니다.</p>
           ) : (
             threads.map((t) => (
               <div key={t.id} className="group flex items-center gap-1">
@@ -45,9 +47,9 @@ export function SidebarThreads({
                   size="icon"
                   className="h-8 w-8 opacity-60 group-hover:opacity-100"
                   onClick={() => onDelete(t.id)}
-                  aria-label="스레드 삭제"
+                  aria-label="채팅 삭제"
                 >
-                  ×
+                  <Trash2 className="size-4" />
                 </Button>
               </div>
             ))

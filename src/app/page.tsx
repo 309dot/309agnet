@@ -4,10 +4,18 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { ChatComposer } from "@/components/chat-composer"
 import { MessageList } from "@/components/message-list"
 import { RunLog, RunPanel } from "@/components/run-panel"
+import { SidebarThreads } from "@/components/sidebar-threads"
 import { TopBar } from "@/components/top-bar"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { streamFromOpenClawGateway } from "@/lib/openclaw"
 import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/lib/store"
 
@@ -18,11 +26,14 @@ export default function HomePage() {
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [hydrated, setHydrated] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [runOpen, setRunOpen] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [runLogs, setRunLogs] = useState<RunLog[]>([{ step: "idle", status: "queued", text: "요청 대기 중" }])
-  const [threadPickerOpen, setThreadPickerOpen] = useState(false)
+  const [chatDialogOpen, setChatDialogOpen] = useState(false)
   const [threadQuery, setThreadQuery] = useState("")
+  const [threadAgentFilter, setThreadAgentFilter] = useState("all")
+  const [threadSort, setThreadSort] = useState("recent")
   const [streamingDraft, setStreamingDraft] = useState("")
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>("unknown")
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -34,7 +45,7 @@ export default function HomePage() {
       setThreads(loadedThreads)
       setActiveThreadId(loadedThreads[0].id)
     } else {
-      const first = createThread()
+      const first = createThread("새 채팅", "orchestrator")
       setThreads([first])
       setActiveThreadId(first.id)
     }
@@ -63,7 +74,7 @@ export default function HomePage() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault()
-        setThreadPickerOpen(true)
+        setChatDialogOpen(true)
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
         e.preventDefault()
@@ -76,14 +87,33 @@ export default function HomePage() {
 
   const activeThread = useMemo(() => threads.find((t) => t.id === activeThreadId) ?? null, [threads, activeThreadId])
 
+  const agentOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const t of threads) set.add(t.agent ?? "orchestrator")
+    return ["all", ...Array.from(set)]
+  }, [threads])
+
   const filteredThreads = useMemo(() => {
     const q = threadQuery.trim().toLowerCase()
-    if (!q) return threads
-    return threads.filter((t) => t.title.toLowerCase().includes(q))
-  }, [threadQuery, threads])
+    let list = threads.filter((t) => (q ? t.title.toLowerCase().includes(q) : true))
+
+    if (threadAgentFilter !== "all") {
+      list = list.filter((t) => (t.agent ?? "orchestrator") === threadAgentFilter)
+    }
+
+    const sorted = [...list]
+    if (threadSort === "recent") {
+      sorted.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    } else if (threadSort === "oldest") {
+      sorted.sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime())
+    } else {
+      sorted.sort((a, b) => a.title.localeCompare(b.title, "ko"))
+    }
+    return sorted
+  }, [threadQuery, threadAgentFilter, threadSort, threads])
 
   const onCreateThread = () => {
-    const t = createThread()
+    const t = createThread("새 채팅", "orchestrator")
     setThreads((prev) => [t, ...prev])
     setActiveThreadId(t.id)
   }
@@ -119,7 +149,7 @@ export default function HomePage() {
 
     let targetThread = activeThread
     if (!targetThread) {
-      const created = createThread()
+      const created = createThread("새 채팅", "orchestrator")
       setThreads((prev) => [created, ...prev])
       setActiveThreadId(created.id)
       targetThread = created
@@ -185,7 +215,7 @@ export default function HomePage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `309agnet-threads-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `309agnet-chats-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -204,59 +234,100 @@ export default function HomePage() {
   }
 
   return (
-    <main className="flex h-dvh flex-col bg-background text-foreground">
-      <TopBar
-        model={FIXED_MODEL}
-        onRunPanel={() => setRunOpen(true)}
-        onOpenThreads={() => setThreadPickerOpen(true)}
-        onCreateThread={onCreateThread}
-        connectionMode={connectionMode}
-      />
+    <main className="flex h-dvh bg-background text-foreground">
+      {sidebarOpen ? (
+        <SidebarThreads
+          threads={threads}
+          activeThreadId={activeThreadId}
+          onSelect={setActiveThreadId}
+          onCreate={onCreateThread}
+          onDelete={onDeleteThread}
+        />
+      ) : null}
 
-      <div className="flex items-center justify-between border-b px-3 py-2 text-xs text-muted-foreground md:px-4">
-        <div className="truncate">
-          <kbd className="rounded border px-1">⌘/Ctrl + K</kbd> 스레드 검색 · <kbd className="rounded border px-1">⌘/Ctrl + N</kbd> 새 스레드
-        </div>
-        <div className="ml-2 flex items-center gap-2">
-          {isSending ? (
-            <Button variant="destructive" size="sm" onClick={onStop}>
-              중단
+      <section className="flex min-w-0 flex-1 flex-col">
+        <TopBar
+          model={FIXED_MODEL}
+          onRunPanel={() => setRunOpen(true)}
+          onOpenThreads={() => setChatDialogOpen(true)}
+          onCreateThread={onCreateThread}
+          onToggleSidebar={() => setSidebarOpen((v) => !v)}
+          connectionMode={connectionMode}
+        />
+
+        <div className="flex items-center justify-between border-b px-3 py-2 text-xs text-muted-foreground md:px-4">
+          <div className="truncate">
+            <kbd className="rounded border px-1">⌘/Ctrl + K</kbd> 채팅 검색 · <kbd className="rounded border px-1">⌘/Ctrl + N</kbd> 새 채팅
+          </div>
+          <div className="ml-2 flex items-center gap-2">
+            {isSending ? (
+              <Button variant="destructive" size="sm" onClick={onStop}>
+                중단
+              </Button>
+            ) : null}
+            <Button variant="outline" size="sm" onClick={exportThreads}>
+              내보내기
             </Button>
-          ) : null}
-          <Button variant="outline" size="sm" onClick={exportThreads}>
-            내보내기
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-            불러오기
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            className="hidden"
-            onChange={(e) => importThreads(e.target.files?.[0] ?? null)}
-          />
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              불러오기
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(e) => importThreads(e.target.files?.[0] ?? null)}
+            />
+          </div>
         </div>
-      </div>
 
-      <section className="min-h-0 flex-1">
-        <MessageList messages={activeThread?.messages ?? []} streamingDraft={streamingDraft} />
+        <section className="min-h-0 flex-1">
+          <MessageList messages={activeThread?.messages ?? []} streamingDraft={streamingDraft} />
+        </section>
+        <ChatComposer onSend={onSend} disabled={isSending} />
       </section>
-      <ChatComposer onSend={onSend} disabled={isSending} />
 
       <RunPanel open={runOpen} onOpenChange={setRunOpen} logs={runLogs} />
 
-      <Dialog open={threadPickerOpen} onOpenChange={setThreadPickerOpen}>
+      <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>스레드 빠른 전환</DialogTitle>
+            <DialogTitle>채팅 빠른 전환</DialogTitle>
           </DialogHeader>
+
           <Input
-            placeholder="스레드 제목 검색..."
+            placeholder="채팅 제목 검색..."
             value={threadQuery}
             onChange={(e) => setThreadQuery(e.target.value)}
             className="text-foreground"
           />
+
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <Select value={threadAgentFilter} onValueChange={setThreadAgentFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Agent 필터" />
+              </SelectTrigger>
+              <SelectContent>
+                {agentOptions.map((a) => (
+                  <SelectItem key={a} value={a}>
+                    {a === "all" ? "전체 agent" : a}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={threadSort} onValueChange={setThreadSort}>
+              <SelectTrigger>
+                <SelectValue placeholder="정렬" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recent">최근 활동순</SelectItem>
+                <SelectItem value="oldest">오래된순</SelectItem>
+                <SelectItem value="title">제목순</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="max-h-72 space-y-2 overflow-auto">
             {filteredThreads.length === 0 ? (
               <p className="text-sm text-muted-foreground">검색 결과가 없습니다.</p>
@@ -268,13 +339,14 @@ export default function HomePage() {
                     className="w-full justify-start text-left"
                     onClick={() => {
                       setActiveThreadId(t.id)
-                      setThreadPickerOpen(false)
+                      setChatDialogOpen(false)
                       setThreadQuery("")
                     }}
                   >
                     <span className="truncate">{t.title}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{t.agent ?? "orchestrator"}</span>
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => onDeleteThread(t.id)} aria-label="스레드 삭제">
+                  <Button variant="ghost" size="icon" onClick={() => onDeleteThread(t.id)} aria-label="채팅 삭제">
                     ×
                   </Button>
                 </div>

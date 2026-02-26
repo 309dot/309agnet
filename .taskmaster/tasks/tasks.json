@@ -96,13 +96,78 @@
       "assignee": "verifier",
       "subtasks": [],
       "updatedAt": "2026-02-26T07:43:33.936775Z"
+    },
+    {
+      "id": "8",
+      "title": "UI 용어 통일 (스레드→채팅)",
+      "description": "모든 주요 UI 텍스트를 채팅 용어로 통일",
+      "details": "모든 주요 UI 텍스트를 채팅 용어로 통일",
+      "testStrategy": "동작 수동 확인",
+      "priority": "high",
+      "dependencies": [],
+      "status": "done",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-02-26T07:58:36.792273Z"
+    },
+    {
+      "id": "9",
+      "title": "아이콘 기반 사이드바 재도입",
+      "description": "사이드바 토글 버튼 + 채팅 생성/삭제 아이콘 UX 적용",
+      "details": "사이드바 토글 버튼 + 채팅 생성/삭제 아이콘 UX 적용",
+      "testStrategy": "동작 수동 확인",
+      "priority": "high",
+      "dependencies": [],
+      "status": "done",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-02-26T07:58:36.792273Z"
+    },
+    {
+      "id": "10",
+      "title": "채팅 다이얼로그 agent 필터",
+      "description": "agent별 필터 드롭다운 추가",
+      "details": "agent별 필터 드롭다운 추가",
+      "testStrategy": "동작 수동 확인",
+      "priority": "high",
+      "dependencies": [],
+      "status": "done",
+      "assignee": "researcher",
+      "subtasks": [],
+      "updatedAt": "2026-02-26T07:58:36.792273Z"
+    },
+    {
+      "id": "11",
+      "title": "채팅 다이얼로그 최근 활동순 정렬",
+      "description": "최근/오래된/제목순 정렬 추가",
+      "details": "최근/오래된/제목순 정렬 추가",
+      "testStrategy": "동작 수동 확인",
+      "priority": "high",
+      "dependencies": [],
+      "status": "done",
+      "assignee": "researcher",
+      "subtasks": [],
+      "updatedAt": "2026-02-26T07:58:36.792273Z"
+    },
+    {
+      "id": "12",
+      "title": "kanban 데이터 소스 반영 누락 수정",
+      "description": "kanban에서 309agnet tasks 반영되도록 root 확장",
+      "details": "kanban에서 309agnet tasks 반영되도록 root 확장",
+      "testStrategy": "동작 수동 확인",
+      "priority": "high",
+      "dependencies": [],
+      "status": "done",
+      "assignee": "verifier",
+      "subtasks": [],
+      "updatedAt": "2026-02-26T07:58:36.792273Z"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-02-26T07:43:33.936775Z",
-    "taskCount": 7,
-    "completedCount": 4,
+    "lastModified": "2026-02-26T07:58:36.792273Z",
+    "taskCount": 12,
+    "completedCount": 9,
     "tags": [
       "master"
     ]
