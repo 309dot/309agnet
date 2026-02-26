@@ -36,17 +36,17 @@
       "testStrategy": "dry-run 결과와 실제 set-status 전환 확인",
       "priority": "high",
       "dependencies": [],
-      "status": "in-progress",
+      "status": "done",
       "assignee": "orchestrator",
       "subtasks": [],
-      "updatedAt": "2026-02-26T05:57:41.376Z"
+      "updatedAt": "2026-02-26T05:58:10.221Z"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-02-26T05:57:41.377Z",
+    "lastModified": "2026-02-26T05:58:10.222Z",
     "taskCount": 3,
-    "completedCount": 0,
+    "completedCount": 1,
     "tags": [
       "master"
     ]
