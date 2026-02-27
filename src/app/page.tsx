@@ -310,6 +310,49 @@ export default function HomePage() {
       const message = String(error)
       const isConfigError = message.includes("503") || message.includes("upstream_not_configured")
       const isCancelled = message.includes("job_cancelled") || message.includes("cancelled")
+      const isJobPipelineError =
+        message.includes("job_stream_error") ||
+        message.includes("job_status_failed") ||
+        message.includes("not_found") ||
+        message.includes("stream_timeout")
+
+      if (openclawRequestMode && isJobPipelineError && !isConfigError && !isCancelled) {
+        try {
+          const controller = new AbortController()
+          abortRef.current = controller
+
+          const textOut = await streamFromOpenClawGateway(
+            {
+              threadId: userAdded.id,
+              message: `${RESPONSE_STYLE_PREFIX}${text}`,
+              model: FIXED_MODEL,
+            },
+            (partial) => {
+              setStreamingDraft(partial)
+              setRunLogs([
+                { step: "plan", status: "done", text: "요청을 분석했습니다." },
+                { step: "agent", status: "running", text: "Job 파이프라인 실패로 스트리밍 경로로 자동 전환" },
+                { step: "compose", status: "running", text: "응답 작성 중" },
+              ])
+            },
+            controller.signal,
+          )
+
+          const withAssistant = addMessage(userAdded, "assistant", textOut)
+          setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
+          setStreamingDraft("")
+          setLastFailedJobId(null)
+          setRunLogs([
+            { step: "plan", status: "done", text: "요청을 분석했습니다." },
+            { step: "agent", status: "done", text: "스트리밍 자동 전환 성공" },
+            { step: "compose", status: "done", text: "응답 생성 완료" },
+          ])
+          return
+        } catch {
+          // fallback 실패 시 일반 오류 처리로 진행
+        }
+      }
+
       const friendly = isCancelled
         ? "요청이 취소되었습니다."
         : isConfigError
@@ -529,7 +572,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <section className="min-h-0 flex-1 overflow-hidden pb-[52px]">
+        <section className="min-h-0 flex-1 overflow-hidden pb-4">
           <MessageList messages={activeThread?.messages ?? []} streamingDraft={streamingDraft} />
         </section>
         <ChatComposer
