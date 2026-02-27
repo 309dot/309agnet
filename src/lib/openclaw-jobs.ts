@@ -21,7 +21,7 @@ export interface OpenClawJobStatusResponse {
 }
 
 export async function createOpenClawJob(req: OpenClawJobCreateRequest): Promise<OpenClawJobCreateResponse> {
-  const res = await fetch("/api/openclaw/jobs", {
+  const res = await fetch("/api/oc/jobs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
@@ -31,19 +31,19 @@ export async function createOpenClawJob(req: OpenClawJobCreateRequest): Promise<
 }
 
 export async function getOpenClawJobStatus(jobId: string): Promise<OpenClawJobStatusResponse> {
-  const res = await fetch(`/api/openclaw/jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" })
+  const res = await fetch(`/api/oc/jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" })
   if (!res.ok) throw new Error(`job_status_failed:${res.status}`)
   return (await res.json()) as OpenClawJobStatusResponse
 }
 
 export async function cancelOpenClawJob(jobId: string): Promise<OpenClawJobStatusResponse> {
-  const res = await fetch(`/api/openclaw/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" })
+  const res = await fetch(`/api/oc/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" })
   if (!res.ok) throw new Error(`job_cancel_failed:${res.status}`)
   return (await res.json()) as OpenClawJobStatusResponse
 }
 
 export async function retryOpenClawJob(jobId: string): Promise<OpenClawJobStatusResponse> {
-  const res = await fetch(`/api/openclaw/jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" })
+  const res = await fetch(`/api/oc/jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" })
   if (!res.ok) throw new Error(`job_retry_failed:${res.status}`)
   return (await res.json()) as OpenClawJobStatusResponse
 }
@@ -53,7 +53,7 @@ export function streamOpenClawJobStatus(
   onStatus: (status: OpenClawJobStatusResponse) => void,
 ): Promise<OpenClawJobStatusResponse> {
   return new Promise((resolve, reject) => {
-    const es = new EventSource(`/api/openclaw/jobs/${encodeURIComponent(jobId)}/stream`)
+    const es = new EventSource(`/api/oc/jobs/${encodeURIComponent(jobId)}/stream`)
 
     const cleanup = () => {
       es.close()
