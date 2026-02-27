@@ -10,7 +10,8 @@
     "tm": "task-master",
     "tm:dispatch": "node scripts/taskmaster-dispatch.mjs",
     "tm:dispatch:dry": "node scripts/taskmaster-dispatch.mjs --dry-run",
-    "verify:deploy": "node scripts/verify-deploy.mjs"
+    "verify:deploy": "node scripts/verify-deploy.mjs",
+    "verify:user-flow": "node scripts/user-flow.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

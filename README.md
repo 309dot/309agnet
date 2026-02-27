@@ -109,6 +109,21 @@ launchctl kickstart -k gui/$(id -u)/com.309agent.app3090
 curl -i http://127.0.0.1:3090
 ```
 
+## User-flow verification (recommended)
+
+Run this before/after deployment:
+
+```bash
+npm run verify:user-flow
+```
+
+It verifies end-to-end flow:
+1. health check
+2. login
+3. normal chat request
+4. openclaw job create
+5. job status poll until done/error/cancelled
+
 ## Quick QA checklist
 
 1. Create thread
