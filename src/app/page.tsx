@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { streamFromOpenClawGateway } from "@/lib/openclaw"
+import { createOpenClawJob, getOpenClawJobStatus } from "@/lib/openclaw-jobs"
 import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/lib/store"
 
 type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
@@ -45,6 +46,8 @@ export default function HomePage() {
   const [deviceName, setDeviceName] = useState("")
   const [devicesOpen, setDevicesOpen] = useState(false)
   const [sessions, setSessions] = useState<AuthSession[]>([])
+  const [openclawRequestMode, setOpenclawRequestMode] = useState(false)
+  const [, setActiveJobId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -161,6 +164,7 @@ export default function HomePage() {
   const onStop = () => {
     abortRef.current?.abort()
     abortRef.current = null
+    setActiveJobId(null)
     setIsSending(false)
     setStreamingDraft("")
     setRunLogs([
@@ -191,6 +195,65 @@ export default function HomePage() {
     setThreads((prev) => prev.map((t) => (t.id === userAdded.id ? userAdded : t)))
 
     try {
+      if (openclawRequestMode) {
+        setRunLogs([
+          { step: "plan", status: "done", text: "요청을 분석했습니다." },
+          { step: "agent", status: "running", text: "비동기 Job 생성 중..." },
+          { step: "compose", status: "queued", text: "Job 완료 대기" },
+        ])
+
+        const job = await createOpenClawJob({
+          threadId: userAdded.id,
+          message: `${RESPONSE_STYLE_PREFIX}${text}`,
+          model: FIXED_MODEL,
+        })
+
+        setActiveJobId(job.jobId)
+
+        let attempts = 0
+        const maxAttempts = 240
+
+        while (attempts < maxAttempts) {
+          const status = await getOpenClawJobStatus(job.jobId)
+          setRunLogs([
+            { step: "plan", status: "done", text: "요청을 분석했습니다." },
+            {
+              step: "agent",
+              status: status.status === "error" ? "error" : status.status === "done" ? "done" : "running",
+              text:
+                status.status === "queued"
+                  ? "Job 대기열에서 처리 대기 중..."
+                  : status.status === "running"
+                    ? "Job 실행 중..."
+                    : status.status === "done"
+                      ? "Job 실행 완료"
+                      : status.error ?? "Job 실행 중 오류 발생",
+            },
+            {
+              step: "compose",
+              status: status.status === "done" ? "done" : status.status === "error" ? "queued" : "running",
+              text: status.status === "done" ? "응답 생성 완료" : "응답 반영 대기",
+            },
+          ])
+
+          if (status.status === "done") {
+            const withAssistant = addMessage(userAdded, "assistant", status.result ?? "")
+            setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
+            setActiveJobId(null)
+            return
+          }
+
+          if (status.status === "error") {
+            throw new Error(status.error ?? "job_failed")
+          }
+
+          attempts += 1
+          await new Promise((r) => setTimeout(r, 1250))
+        }
+
+        throw new Error("job_timeout")
+      }
+
       const controller = new AbortController()
       abortRef.current = controller
 
@@ -238,6 +301,7 @@ export default function HomePage() {
       ])
     } finally {
       abortRef.current = null
+      setActiveJobId(null)
       setIsSending(false)
     }
   }
@@ -378,7 +442,12 @@ export default function HomePage() {
         <section className="min-h-0 flex-1 overflow-hidden pb-[52px]">
           <MessageList messages={activeThread?.messages ?? []} streamingDraft={streamingDraft} />
         </section>
-        <ChatComposer onSend={onSend} disabled={isSending} />
+        <ChatComposer
+          onSend={onSend}
+          disabled={isSending}
+          openclawMode={openclawRequestMode}
+          onToggleOpenclawMode={() => setOpenclawRequestMode((v) => !v)}
+        />
       </section>
 
       <RunPanel open={runOpen} onOpenChange={setRunOpen} logs={runLogs} />

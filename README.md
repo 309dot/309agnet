@@ -8,6 +8,7 @@ ChatGPT-style web app MVP built with **Next.js (App Router)**, **TypeScript**, *
 - Main chat: message list + composer
   - Enter to send
   - Shift+Enter for newline
+  - 하단 `openclaw 요청` 토글 ON 시 비동기 Job 모드(외부 요청 안정 처리)
 - Right run panel (Sheet): mock status/log steps
 - Settings page:
   - model text

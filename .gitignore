@@ -58,6 +58,9 @@ node_modules/
 *.sw?
 # OS specific
 
+# local runtime state
+.openclaw/
+
 # Task files
 # tasks.json
 # tasks/ 
