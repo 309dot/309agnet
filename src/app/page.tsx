@@ -23,7 +23,10 @@ import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/li
 
 type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
 type AuthSession = { id: string; deviceName: string; userAgent: string; createdAt: string; lastSeenAt: string }
+type RememberedDevice = { id: string; deviceName: string; lastUsedAt: string }
 const FIXED_MODEL = "gpt-5.3-codex"
+const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
+const REMEMBERED_DEVICES_KEY = "oc_remembered_devices_v1"
 const RESPONSE_STYLE_PREFIX = "응답 형식 지침: 가독성 좋게 문단을 충분히 나눠서 작성해줘. 제목/머리말/부머리말/본문 구조를 쓰고, 목록은 bullet 또는 번호 목록을 사용하되 번호 목록은 반드시 '1) 2) 3)' 형식으로 써줘. 필요하면 간단한 표도 활용해줘. 이모지는 자연스럽게(과하지 않게) 사용하고 친근한 톤으로 답해줘.\n\n사용자 요청:\n"
 
 export default function HomePage() {
@@ -46,6 +49,7 @@ export default function HomePage() {
   const [deviceName, setDeviceName] = useState("")
   const [devicesOpen, setDevicesOpen] = useState(false)
   const [sessions, setSessions] = useState<AuthSession[]>([])
+  const [rememberedDevices, setRememberedDevices] = useState<RememberedDevice[]>([])
   const [openclawRequestMode, setOpenclawRequestMode] = useState(false)
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [lastFailedJobId, setLastFailedJobId] = useState<string | null>(null)
@@ -87,6 +91,21 @@ export default function HomePage() {
     update()
     window.addEventListener("resize", update)
     return () => window.removeEventListener("resize", update)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const lastName = localStorage.getItem(LAST_DEVICE_NAME_KEY)
+    if (lastName) setDeviceName(lastName)
+
+    const raw = localStorage.getItem(REMEMBERED_DEVICES_KEY)
+    if (!raw) return
+    try {
+      const parsed = JSON.parse(raw) as RememberedDevice[]
+      if (Array.isArray(parsed)) setRememberedDevices(parsed)
+    } catch {
+      // ignore
+    }
   }, [])
 
   useEffect(() => {
@@ -464,13 +483,30 @@ export default function HomePage() {
   }
 
   const login = async () => {
+    const normalizedDeviceName = deviceName.trim() || "My device"
+
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code: accessCode, deviceName: deviceName || "My device" }),
+      body: JSON.stringify({ code: accessCode, deviceName: normalizedDeviceName }),
     })
+
     setAuthed(res.ok)
-    if (!res.ok) alert("접근 코드가 맞지 않아요.")
+    if (!res.ok) {
+      alert("접근 코드가 맞지 않아요.")
+      return
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(LAST_DEVICE_NAME_KEY, normalizedDeviceName)
+      const now = new Date().toISOString()
+      const next = [
+        { id: `local_${normalizedDeviceName}`, deviceName: normalizedDeviceName, lastUsedAt: now },
+        ...rememberedDevices.filter((d) => d.deviceName !== normalizedDeviceName),
+      ].slice(0, 20)
+      setRememberedDevices(next)
+      localStorage.setItem(REMEMBERED_DEVICES_KEY, JSON.stringify(next))
+    }
   }
 
   const fetchSessions = async () => {
@@ -664,6 +700,7 @@ export default function HomePage() {
             <DialogTitle>디바이스 관리</DialogTitle>
           </DialogHeader>
           <div className="max-h-80 space-y-2 overflow-auto">
+            {sessions.length === 0 ? <p className="text-sm text-muted-foreground">활성 디바이스가 없습니다.</p> : null}
             {sessions.map((s) => (
               <div key={s.id} className="rounded-md border p-2 text-sm">
                 <p className="font-medium">{s.deviceName}</p>
@@ -676,6 +713,20 @@ export default function HomePage() {
                 </div>
               </div>
             ))}
+
+            {rememberedDevices.length > 0 ? (
+              <div className="rounded-md border border-dashed p-2 text-sm">
+                <p className="mb-2 font-medium">기억된 디바이스</p>
+                <div className="space-y-1.5">
+                  {rememberedDevices.map((d) => (
+                    <div key={d.id} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="truncate">{d.deviceName}</span>
+                      <span className="text-muted-foreground">{new Date(d.lastUsedAt).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
           <Button variant="outline" onClick={() => void logout()}>내 기기 로그아웃</Button>
         </DialogContent>

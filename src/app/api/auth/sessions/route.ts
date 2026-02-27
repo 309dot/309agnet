@@ -2,9 +2,10 @@ import { NextResponse } from "next/server"
 import { listSessions, requireSession, revokeSession } from "@/lib/auth"
 
 export async function GET() {
-  await requireSession()
+  const current = await requireSession()
   const sessions = await listSessions()
-  return NextResponse.json({ ok: true, sessions })
+  const safeSessions = sessions.length > 0 ? sessions : [current]
+  return NextResponse.json({ ok: true, sessions: safeSessions })
 }
 
 export async function DELETE(req: Request) {
