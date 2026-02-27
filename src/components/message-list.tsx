@@ -47,17 +47,17 @@ export function MessageList({ messages, streamingDraft }: { messages: Message[];
           {messages.map((m) => (
             <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               {m.role === "user" ? (
-                <div className="flex items-end gap-2">
+                <div className="flex max-w-[85%] items-end gap-1.5">
                   {m.openclawMode ? (
                     <div
-                      className="mb-1 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-background text-muted-foreground"
+                      className="mb-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border bg-background text-muted-foreground"
                       title="openclaw 요청"
                       aria-label="openclaw 요청"
                     >
-                      <Bot className="size-4" />
+                      <Bot className="size-3.5" />
                     </div>
                   ) : null}
-                  <div className="max-w-[85%] rounded-2xl bg-primary px-4 py-3 text-sm leading-relaxed text-primary-foreground">{m.content}</div>
+                  <div className="min-w-0 rounded-2xl bg-primary px-4 py-3 text-sm leading-relaxed text-primary-foreground">{m.content}</div>
                 </div>
               ) : (
                 <div className="max-w-full text-sm leading-relaxed text-foreground">
