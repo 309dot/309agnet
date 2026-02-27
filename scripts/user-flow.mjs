@@ -2,6 +2,7 @@
 
 const baseUrl = process.env.USER_FLOW_BASE_URL || "https://app.309designlab.com"
 const accessCode = process.env.USER_FLOW_ACCESS_CODE || "309designlab-private"
+const allowFallback = process.env.USER_FLOW_ALLOW_FALLBACK === "true"
 
 async function postJson(url, body, cookie) {
   const res = await fetch(url, {
@@ -53,7 +54,11 @@ async function main() {
   )
   if (!chat.res.ok) throw new Error(`chat:${chat.res.status} ${chat.text}`)
   if (!chat.json?.text) throw new Error("chat:empty_text")
-  report.steps.push({ step: "chat", status: chat.res.status, preview: String(chat.json.text).slice(0, 80) })
+  const chatText = String(chat.json.text)
+  if (!allowFallback && chatText.includes("임시 응답")) {
+    throw new Error("chat:fallback_detected")
+  }
+  report.steps.push({ step: "chat", status: chat.res.status, preview: chatText.slice(0, 80) })
 
   const jobCreate = await postJson(
     `${baseUrl}/api/oc/jobs`,
@@ -78,7 +83,11 @@ async function main() {
   }
 
   if (!final) throw new Error("job_status:timeout")
-  report.steps.push({ step: "job_final", status: final.status, preview: String(final.result || final.error || "").slice(0, 80) })
+  const finalText = String(final.result || final.error || "")
+  if (!allowFallback && finalText.includes("임시 응답")) {
+    throw new Error("job:fallback_detected")
+  }
+  report.steps.push({ step: "job_final", status: final.status, preview: finalText.slice(0, 80) })
 
   console.log(JSON.stringify(report, null, 2))
 }
