@@ -12,6 +12,7 @@ export type OpenClawJob = {
   status: OpenClawJobStatus
   result?: string
   error?: string
+  artifactPath?: string
   createdAt: string
   updatedAt: string
 }
@@ -21,6 +22,7 @@ type JobStore = {
 }
 
 const STORE_PATH = path.join(process.cwd(), ".openclaw", "openclaw-jobs.json")
+const ARTIFACTS_DIR = path.join(process.cwd(), ".openclaw", "job-artifacts")
 
 async function readStore(): Promise<JobStore> {
   try {
@@ -41,6 +43,16 @@ function trimJobs(jobs: OpenClawJob[]) {
   const MAX = 300
   if (jobs.length <= MAX) return jobs
   return [...jobs].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, MAX)
+}
+
+async function writeJobArtifact(job: OpenClawJob, result: string): Promise<string> {
+  await fs.mkdir(ARTIFACTS_DIR, { recursive: true })
+  const safeDate = new Date().toISOString().replaceAll(":", "-")
+  const fileName = `${safeDate}-${job.id}.md`
+  const fullPath = path.join(ARTIFACTS_DIR, fileName)
+  const content = `# OpenClaw Job Result\n\n- jobId: ${job.id}\n- threadId: ${job.threadId}\n- model: ${job.model}\n- createdAt: ${job.createdAt}\n- updatedAt: ${new Date().toISOString()}\n\n## Prompt\n\n${job.message}\n\n## Result\n\n${result}\n`
+  await fs.writeFile(fullPath, content, "utf-8")
+  return path.relative(process.cwd(), fullPath)
 }
 
 export async function createOpenClawJob(input: Pick<OpenClawJob, "threadId" | "message" | "model">): Promise<OpenClawJob> {
@@ -74,6 +86,13 @@ async function updateOpenClawJob(id: string, updater: (job: OpenClawJob) => Open
   store.jobs[idx] = { ...next, updatedAt: new Date().toISOString() }
   await writeStore(store)
   return store.jobs[idx]
+}
+
+export async function retryOpenClawJob(id: string): Promise<OpenClawJob | null> {
+  return updateOpenClawJob(id, (job) => {
+    if (job.status !== "error" && job.status !== "cancelled") return job
+    return { ...job, status: "queued", error: undefined, result: undefined }
+  })
 }
 
 export async function cancelOpenClawJob(id: string): Promise<OpenClawJob | null> {
@@ -136,6 +155,10 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
     return updateOpenClawJob(id, (job) => {
       if (job.status === "cancelled") return job
       return { ...job, status: "done", result: text, error: undefined }
+    }).then(async (doneJob) => {
+      if (!doneJob || doneJob.status !== "done" || !doneJob.result) return doneJob
+      const artifactPath = await writeJobArtifact(doneJob, doneJob.result)
+      return updateOpenClawJob(id, (job) => ({ ...job, artifactPath }))
     })
   } catch (error) {
     return updateOpenClawJob(id, (job) => {

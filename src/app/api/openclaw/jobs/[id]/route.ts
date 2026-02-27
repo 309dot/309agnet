@@ -21,6 +21,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
     status: job.status,
     result: job.result,
     error: job.error,
+    artifactPath: job.artifactPath,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
   })

@@ -15,7 +15,8 @@ export interface OpenClawJobStatusResponse {
   status: "queued" | "running" | "done" | "error" | "cancelled"
   result?: string
   error?: string
-  createdAt: string
+  artifactPath?: string
+  createdAt?: string
   updatedAt: string
 }
 
@@ -39,4 +40,42 @@ export async function cancelOpenClawJob(jobId: string): Promise<OpenClawJobStatu
   const res = await fetch(`/api/openclaw/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" })
   if (!res.ok) throw new Error(`job_cancel_failed:${res.status}`)
   return (await res.json()) as OpenClawJobStatusResponse
+}
+
+export async function retryOpenClawJob(jobId: string): Promise<OpenClawJobStatusResponse> {
+  const res = await fetch(`/api/openclaw/jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" })
+  if (!res.ok) throw new Error(`job_retry_failed:${res.status}`)
+  return (await res.json()) as OpenClawJobStatusResponse
+}
+
+export function streamOpenClawJobStatus(
+  jobId: string,
+  onStatus: (status: OpenClawJobStatusResponse) => void,
+): Promise<OpenClawJobStatusResponse> {
+  return new Promise((resolve, reject) => {
+    const es = new EventSource(`/api/openclaw/jobs/${encodeURIComponent(jobId)}/stream`)
+
+    const cleanup = () => {
+      es.close()
+    }
+
+    es.addEventListener("status", (evt) => {
+      try {
+        const data = JSON.parse((evt as MessageEvent).data) as OpenClawJobStatusResponse
+        onStatus(data)
+        if (data.status === "done" || data.status === "error" || data.status === "cancelled") {
+          cleanup()
+          resolve(data)
+        }
+      } catch (error) {
+        cleanup()
+        reject(error)
+      }
+    })
+
+    es.addEventListener("error", () => {
+      cleanup()
+      reject(new Error("job_stream_error"))
+    })
+  })
 }

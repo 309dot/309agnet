@@ -9,6 +9,8 @@ ChatGPT-style web app MVP built with **Next.js (App Router)**, **TypeScript**, *
   - Enter to send
   - Shift+Enter for newline
   - 하단 `openclaw 요청` 토글 ON 시 비동기 Job 모드(외부 요청 안정 처리)
+  - Job 취소/재시도 지원, 상태 스트림(SSE) 기반 진행 표시
+  - 완료 결과를 `.openclaw/job-artifacts/*.md` 문서로 자동 저장
 - Right run panel (Sheet): mock status/log steps
 - Settings page:
   - model text

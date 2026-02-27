@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { streamFromOpenClawGateway } from "@/lib/openclaw"
-import { cancelOpenClawJob, createOpenClawJob, getOpenClawJobStatus } from "@/lib/openclaw-jobs"
+import { cancelOpenClawJob, createOpenClawJob, retryOpenClawJob, streamOpenClawJobStatus } from "@/lib/openclaw-jobs"
 import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/lib/store"
 
 type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
@@ -48,6 +48,7 @@ export default function HomePage() {
   const [sessions, setSessions] = useState<AuthSession[]>([])
   const [openclawRequestMode, setOpenclawRequestMode] = useState(false)
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
+  const [lastFailedJobId, setLastFailedJobId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
@@ -188,6 +189,7 @@ export default function HomePage() {
   const onSend = async (text: string) => {
     if (isSending) return
     setIsSending(true)
+    setLastFailedJobId(null)
     setRunLogs([
       { step: "plan", status: "done", text: "요청을 분석했습니다." },
       { step: "agent", status: "running", text: "게이트웨이에 요청 전송 중..." },
@@ -221,11 +223,9 @@ export default function HomePage() {
 
         setActiveJobId(job.jobId)
 
-        let attempts = 0
-        const maxAttempts = 240
-
-        while (attempts < maxAttempts) {
-          const status = await getOpenClawJobStatus(job.jobId)
+        let tick = 0
+        const finalStatus = await streamOpenClawJobStatus(job.jobId, (status) => {
+          tick += 1
           const agentLogStatus =
             status.status === "error" || status.status === "cancelled"
               ? "error"
@@ -240,9 +240,9 @@ export default function HomePage() {
               status: agentLogStatus,
               text:
                 status.status === "queued"
-                  ? `Job 대기열에서 처리 대기 중... (${attempts + 1}/${maxAttempts})`
+                  ? `Job 대기열에서 처리 대기 중... (${tick})`
                   : status.status === "running"
-                    ? `Job 실행 중... (${attempts + 1}/${maxAttempts})`
+                    ? `Job 실행 중... (${tick})`
                     : status.status === "done"
                       ? "Job 실행 완료"
                       : status.status === "cancelled"
@@ -252,30 +252,29 @@ export default function HomePage() {
             {
               step: "compose",
               status: status.status === "done" ? "done" : status.status === "error" || status.status === "cancelled" ? "queued" : "running",
-              text: status.status === "done" ? "응답 생성 완료" : "응답 반영 대기",
+              text:
+                status.status === "done"
+                  ? status.artifactPath
+                    ? `응답 생성 완료 (문서 저장: ${status.artifactPath})`
+                    : "응답 생성 완료"
+                  : "응답 반영 대기",
             },
           ])
+        })
 
-          if (status.status === "done") {
-            const withAssistant = addMessage(userAdded, "assistant", status.result ?? "")
-            setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
-            setActiveJobId(null)
-            return
-          }
-
-          if (status.status === "cancelled") {
-            throw new Error("job_cancelled")
-          }
-
-          if (status.status === "error") {
-            throw new Error(status.error ?? "job_failed")
-          }
-
-          attempts += 1
-          await new Promise((r) => setTimeout(r, 1250))
+        if (finalStatus.status === "done") {
+          const withAssistant = addMessage(userAdded, "assistant", finalStatus.result ?? "")
+          setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
+          setLastFailedJobId(null)
+          setActiveJobId(null)
+          return
         }
 
-        throw new Error("job_timeout")
+        if (finalStatus.status === "cancelled") {
+          throw new Error("job_cancelled")
+        }
+
+        throw new Error(finalStatus.error ?? "job_failed")
       }
 
       const controller = new AbortController()
@@ -320,6 +319,10 @@ export default function HomePage() {
           : "오류가 발생했습니다. 잠시 후 다시 시도해주세요."
       if (isConfigError) setConnectionMode("misconfigured")
 
+      if (openclawRequestMode && !isCancelled) {
+        setLastFailedJobId(activeJobIdRef.current)
+      }
+
       if (!isCancelled) {
         const withAssistant = addMessage(userAdded, "assistant", friendly)
         setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
@@ -332,6 +335,57 @@ export default function HomePage() {
       ])
     } finally {
       abortRef.current = null
+      setActiveJobId(null)
+      setIsSending(false)
+    }
+  }
+
+  const onRetryLastJob = async () => {
+    if (!lastFailedJobId || isSending) return
+    setIsSending(true)
+    setRunLogs([
+      { step: "plan", status: "done", text: "실패한 Job 재시도 준비" },
+      { step: "agent", status: "running", text: "Job 재시도 요청 중..." },
+      { step: "compose", status: "queued", text: "결과 대기" },
+    ])
+
+    try {
+      const retried = await retryOpenClawJob(lastFailedJobId)
+      setActiveJobId(retried.jobId)
+
+      const finalStatus = await streamOpenClawJobStatus(retried.jobId, (status) => {
+        setRunLogs([
+          { step: "plan", status: "done", text: "실패한 Job 재시도 중" },
+          {
+            step: "agent",
+            status: status.status === "done" ? "done" : status.status === "error" || status.status === "cancelled" ? "error" : "running",
+            text: `현재 상태: ${status.status}`,
+          },
+          {
+            step: "compose",
+            status: status.status === "done" ? "done" : "running",
+            text: status.status === "done" ? "응답 수신 완료" : "응답 반영 대기",
+          },
+        ])
+      })
+
+      if (finalStatus.status !== "done") {
+        throw new Error(finalStatus.error ?? `job_${finalStatus.status}`)
+      }
+
+      if (activeThread) {
+        const withAssistant = addMessage(activeThread, "assistant", finalStatus.result ?? "")
+        setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
+      }
+
+      setLastFailedJobId(null)
+    } catch (error) {
+      setRunLogs([
+        { step: "plan", status: "done", text: "재시도 요청 전송" },
+        { step: "agent", status: "error", text: String(error) },
+        { step: "compose", status: "queued", text: "재시도 실패" },
+      ])
+    } finally {
       setActiveJobId(null)
       setIsSending(false)
     }
@@ -452,6 +506,11 @@ export default function HomePage() {
             {isSending ? (
               <Button variant="destructive" size="sm" onClick={onStop}>
                 중단
+              </Button>
+            ) : null}
+            {lastFailedJobId && !isSending ? (
+              <Button variant="secondary" size="sm" onClick={() => void onRetryLastJob()}>
+                마지막 Job 재시도
               </Button>
             ) : null}
             <Button variant="outline" size="sm" onClick={exportThreads}>
