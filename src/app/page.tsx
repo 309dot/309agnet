@@ -204,7 +204,7 @@ export default function HomePage() {
       targetThread = created
     }
 
-    const userAdded = addMessage(targetThread, "user", text)
+    const userAdded = addMessage(targetThread, "user", text, { openclawMode: openclawRequestMode })
     setThreads((prev) => prev.map((t) => (t.id === userAdded.id ? userAdded : t)))
 
     try {

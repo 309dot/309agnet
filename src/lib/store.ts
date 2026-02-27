@@ -5,6 +5,7 @@ export interface Message {
   role: Role
   content: string
   createdAt: string
+  openclawMode?: boolean
 }
 
 export interface Thread {
@@ -80,12 +81,18 @@ export function createThread(name = "새 채팅", agent = "orchestrator"): Threa
   }
 }
 
-export function addMessage(thread: Thread, role: Role, content: string): Thread {
+export function addMessage(
+  thread: Thread,
+  role: Role,
+  content: string,
+  options?: { openclawMode?: boolean },
+): Thread {
   const msg: Message = {
     id: uid("msg"),
     role,
     content,
     createdAt: new Date().toISOString(),
+    openclawMode: options?.openclawMode,
   }
   return {
     ...thread,

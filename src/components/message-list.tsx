@@ -2,6 +2,7 @@
 
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { Bot } from "lucide-react"
 import { Message } from "@/lib/store"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
@@ -46,7 +47,18 @@ export function MessageList({ messages, streamingDraft }: { messages: Message[];
           {messages.map((m) => (
             <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               {m.role === "user" ? (
-                <div className="max-w-[85%] rounded-2xl bg-primary px-4 py-3 text-sm leading-relaxed text-primary-foreground">{m.content}</div>
+                <div className="flex items-end gap-2">
+                  {m.openclawMode ? (
+                    <div
+                      className="mb-1 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-background text-muted-foreground"
+                      title="openclaw 요청"
+                      aria-label="openclaw 요청"
+                    >
+                      <Bot className="size-4" />
+                    </div>
+                  ) : null}
+                  <div className="max-w-[85%] rounded-2xl bg-primary px-4 py-3 text-sm leading-relaxed text-primary-foreground">{m.content}</div>
+                </div>
               ) : (
                 <div className="max-w-full text-sm leading-relaxed text-foreground">
                   <AssistantText content={m.content} />
