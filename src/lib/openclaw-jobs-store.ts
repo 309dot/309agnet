@@ -24,7 +24,19 @@ type JobStore = {
 const STORE_PATH = path.join(process.cwd(), ".openclaw", "openclaw-jobs.json")
 const ARTIFACTS_DIR = path.join(process.cwd(), ".openclaw", "job-artifacts")
 
+function isVercelRuntime() {
+  return process.env.VERCEL === "1" || process.env.VERCEL_ENV !== undefined
+}
+
+function getMemoryStore(): JobStore {
+  const g = globalThis as unknown as { __openclawJobsStore?: JobStore }
+  if (!g.__openclawJobsStore) g.__openclawJobsStore = { jobs: [] }
+  return g.__openclawJobsStore
+}
+
 async function readStore(): Promise<JobStore> {
+  if (isVercelRuntime()) return getMemoryStore()
+
   try {
     const raw = await fs.readFile(STORE_PATH, "utf-8")
     const parsed = JSON.parse(raw) as Partial<JobStore>
@@ -35,6 +47,12 @@ async function readStore(): Promise<JobStore> {
 }
 
 async function writeStore(store: JobStore) {
+  if (isVercelRuntime()) {
+    const mem = getMemoryStore()
+    mem.jobs = store.jobs
+    return
+  }
+
   await fs.mkdir(path.dirname(STORE_PATH), { recursive: true })
   await fs.writeFile(STORE_PATH, JSON.stringify(store, null, 2), "utf-8")
 }
@@ -46,6 +64,8 @@ function trimJobs(jobs: OpenClawJob[]) {
 }
 
 async function writeJobArtifact(job: OpenClawJob, result: string): Promise<string> {
+  if (isVercelRuntime()) return "artifacts-disabled-on-vercel"
+
   await fs.mkdir(ARTIFACTS_DIR, { recursive: true })
   const safeDate = new Date().toISOString().replaceAll(":", "-")
   const fileName = `${safeDate}-${job.id}.md`
