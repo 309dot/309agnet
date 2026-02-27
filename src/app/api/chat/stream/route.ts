@@ -41,27 +41,31 @@ export async function POST(req: Request) {
 
   // If upstream is configured, proxy SSE as-is.
   if (upstream) {
-    const upstreamRes = await fetch(upstream, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ threadId, message, model }),
-      cache: "no-store",
-    })
+    try {
+      const upstreamRes = await fetch(upstream, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ threadId, message, model }),
+        cache: "no-store",
+      })
 
-    if (!upstreamRes.ok || !upstreamRes.body) {
-      return new Response(`upstream_error:${upstreamRes.status}`, { status: 502 })
+      if (!upstreamRes.ok || !upstreamRes.body) {
+        return new Response(`upstream_error:${upstreamRes.status}`, { status: 502 })
+      }
+
+      return new Response(upstreamRes.body, {
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      })
+    } catch (error) {
+      return new Response(`upstream_unreachable:${String(error)}`, { status: 502 })
     }
-
-    return new Response(upstreamRes.body, {
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-      },
-    })
   }
 
   if (!allowMock) {

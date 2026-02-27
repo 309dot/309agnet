@@ -310,6 +310,8 @@ export default function HomePage() {
       const message = String(error)
       const isConfigError = message.includes("503") || message.includes("upstream_not_configured")
       const isCancelled = message.includes("job_cancelled") || message.includes("cancelled")
+      const isUpstreamUnreachable = message.includes("upstream_unreachable") || message.includes("ECONNREFUSED") || message.includes("ENOTFOUND")
+      const isUpstreamError = message.includes("upstream_error:")
       const isJobPipelineError =
         message.includes("job_stream_error") ||
         message.includes("job_status_failed") ||
@@ -359,7 +361,11 @@ export default function HomePage() {
           ? openclawRequestMode
             ? "OpenClaw 연동 설정이 아직 안 됐습니다. 관리자에게 OPENCLAW_CHAT_URL 설정을 요청해주세요."
             : "OpenClaw 연동 설정이 아직 안 됐습니다. 관리자에게 OPENCLAW_CHAT_STREAM_URL 설정을 요청해주세요."
-          : "오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+          : isUpstreamUnreachable
+            ? "OpenClaw 서버에 연결할 수 없습니다. OPENCLAW_CHAT_URL/STREAM_URL이 외부(Vercel)에서 접근 가능한 주소인지 확인해주세요."
+            : isUpstreamError
+              ? "OpenClaw 서버가 오류를 반환했습니다. 잠시 후 다시 시도하거나 서버 상태를 확인해주세요."
+              : "오류가 발생했습니다. 잠시 후 다시 시도해주세요."
       if (isConfigError) setConnectionMode("misconfigured")
 
       if (openclawRequestMode && !isCancelled) {

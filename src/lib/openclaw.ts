@@ -14,7 +14,10 @@ export async function sendToOpenClawGateway(req: GatewayChatRequest): Promise<Ga
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
   })
-  if (!res.ok) throw new Error(`gateway request failed: ${res.status}`)
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "")
+    throw new Error(`gateway request failed: ${res.status}${detail ? ` ${detail}` : ""}`)
+  }
   return (await res.json()) as GatewayChatResponse
 }
 
@@ -29,7 +32,10 @@ export async function streamFromOpenClawGateway(
     body: JSON.stringify(req),
     signal,
   })
-  if (!res.ok || !res.body) throw new Error(`stream request failed: ${res.status}`)
+  if (!res.ok || !res.body) {
+    const detail = await res.text().catch(() => "")
+    throw new Error(`stream request failed: ${res.status}${detail ? ` ${detail}` : ""}`)
+  }
 
   const reader = res.body.getReader()
   const decoder = new TextDecoder()

@@ -18,22 +18,26 @@ export async function POST(req: Request) {
   const token = process.env.OPENCLAW_CHAT_TOKEN
 
   if (upstream) {
-    const upstreamRes = await fetch(upstream, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ threadId, message, model }),
-      cache: "no-store",
-    })
+    try {
+      const upstreamRes = await fetch(upstream, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ threadId, message, model }),
+        cache: "no-store",
+      })
 
-    if (!upstreamRes.ok) {
-      return NextResponse.json({ error: `upstream_error:${upstreamRes.status}` }, { status: 502 })
+      if (!upstreamRes.ok) {
+        return NextResponse.json({ error: `upstream_error:${upstreamRes.status}` }, { status: 502 })
+      }
+
+      const data = (await upstreamRes.json()) as { text?: string }
+      return NextResponse.json({ text: data.text ?? "" })
+    } catch (error) {
+      return NextResponse.json({ error: `upstream_unreachable:${String(error)}` }, { status: 502 })
     }
-
-    const data = (await upstreamRes.json()) as { text?: string }
-    return NextResponse.json({ text: data.text ?? "" })
   }
 
   if (!allowMock) {
