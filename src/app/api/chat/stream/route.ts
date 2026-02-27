@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/auth"
 
 const DEFAULT_MOCK_DELAY = 180
+const DEFAULT_BACKUP_STREAM_URL = "https://ocbridge.309designlab.com/chat/stream"
 
 function extractUserPrompt(message: string) {
   const marker = "사용자 요청:\n"
@@ -29,6 +30,24 @@ function mockStream(message: string) {
   })
 }
 
+async function requestUpstreamStream(url: string, token: string | undefined, payload: { threadId: string; message: string; model: string }) {
+  const upstreamRes = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  })
+
+  if (!upstreamRes.ok || !upstreamRes.body) {
+    throw new Error(`upstream_error:${upstreamRes.status}`)
+  }
+
+  return upstreamRes.body
+}
+
 export async function POST(req: Request) {
   try {
     await requireSession()
@@ -45,47 +64,41 @@ export async function POST(req: Request) {
 
   const upstream = process.env.OPENCLAW_CHAT_STREAM_URL
   const token = process.env.OPENCLAW_CHAT_STREAM_TOKEN
+  const backupUpstream = process.env.OPENCLAW_CHAT_STREAM_BACKUP_URL || DEFAULT_BACKUP_STREAM_URL
 
-  // If upstream is configured, proxy SSE as-is.
   if (upstream) {
-    try {
-      const upstreamRes = await fetch(upstream, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ threadId, message, model }),
-        cache: "no-store",
-      })
+    const payload = { threadId, message, model }
 
-      if (upstreamRes.ok && upstreamRes.body) {
-        return new Response(upstreamRes.body, {
+    try {
+      const bodyStream = await requestUpstreamStream(upstream, token, payload)
+      return new Response(bodyStream, {
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      })
+    } catch {
+      try {
+        const bodyStream = await requestUpstreamStream(backupUpstream, undefined, payload)
+        return new Response(bodyStream, {
           headers: {
             "Content-Type": "text/event-stream; charset=utf-8",
             "Cache-Control": "no-cache, no-transform",
             Connection: "keep-alive",
+            "X-309agnet-Mode": "backup-upstream",
+          },
+        })
+      } catch {
+        return new Response(mockStream(`요청: ${userPrompt.slice(0, 80)}\n\n[OpenClaw 서버 연결 실패로 임시 응답 전환]`), {
+          headers: {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache, no-transform",
+            Connection: "keep-alive",
+            "X-309agnet-Mode": "fallback",
           },
         })
       }
-
-      return new Response(mockStream(`요청: ${userPrompt.slice(0, 80)}\n\n[OpenClaw 서버 연결 불안정으로 임시 응답 전환]`), {
-        headers: {
-          "Content-Type": "text/event-stream; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-          "X-309agnet-Mode": "fallback",
-        },
-      })
-    } catch {
-      return new Response(mockStream(`요청: ${userPrompt.slice(0, 80)}\n\n[OpenClaw 서버 연결 실패로 임시 응답 전환]`), {
-        headers: {
-          "Content-Type": "text/event-stream; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-          "X-309agnet-Mode": "fallback",
-        },
-      })
     }
   }
 
@@ -93,7 +106,6 @@ export async function POST(req: Request) {
     return new Response("upstream_not_configured: set OPENCLAW_CHAT_STREAM_URL", { status: 503 })
   }
 
-  // Fallback mock stream keeps app functional without external backend wiring.
   return new Response(mockStream(userPrompt), {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",

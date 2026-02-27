@@ -55,7 +55,7 @@ async function main() {
   if (!chat.res.ok) throw new Error(`chat:${chat.res.status} ${chat.text}`)
   if (!chat.json?.text) throw new Error("chat:empty_text")
   const chatText = String(chat.json.text)
-  if (!allowFallback && chatText.includes("임시 응답")) {
+  if (!allowFallback && (chatText.includes("임시 응답") || chatText.includes("연결할 수 없습니다"))) {
     throw new Error("chat:fallback_detected")
   }
   report.steps.push({ step: "chat", status: chat.res.status, preview: chatText.slice(0, 80) })
@@ -84,7 +84,7 @@ async function main() {
 
   if (!final) throw new Error("job_status:timeout")
   const finalText = String(final.result || final.error || "")
-  if (!allowFallback && finalText.includes("임시 응답")) {
+  if (!allowFallback && (finalText.includes("임시 응답") || finalText.includes("연결할 수 없습니다"))) {
     throw new Error("job:fallback_detected")
   }
   report.steps.push({ step: "job_final", status: final.status, preview: finalText.slice(0, 80) })

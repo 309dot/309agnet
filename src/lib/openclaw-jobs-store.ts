@@ -23,6 +23,7 @@ type JobStore = {
 
 const STORE_PATH = path.join(process.cwd(), ".openclaw", "openclaw-jobs.json")
 const ARTIFACTS_DIR = path.join(process.cwd(), ".openclaw", "job-artifacts")
+const DEFAULT_BACKUP_CHAT_URL = "https://ocbridge.309designlab.com/chat"
 
 function isVercelRuntime() {
   return process.env.VERCEL === "1" || process.env.VERCEL_ENV !== undefined
@@ -129,9 +130,26 @@ export async function cancelOpenClawJob(id: string): Promise<OpenClawJob | null>
   })
 }
 
+async function requestUpstream(url: string, token: string | undefined, payload: { threadId: string; message: string; model: string }) {
+  const upstreamRes = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  })
+
+  if (!upstreamRes.ok) throw new Error(`upstream_error:${upstreamRes.status}`)
+  const data = (await upstreamRes.json()) as { text?: string }
+  return data.text ?? ""
+}
+
 export async function processOpenClawJob(id: string): Promise<OpenClawJob | null> {
   const upstream = process.env.OPENCLAW_CHAT_URL
   const token = process.env.OPENCLAW_CHAT_TOKEN
+  const backupUpstream = process.env.OPENCLAW_CHAT_BACKUP_URL || DEFAULT_BACKUP_CHAT_URL
   const allowMock = process.env.OPENCLAW_ALLOW_MOCK?.trim().toLowerCase() === "true"
 
   const marked = await updateOpenClawJob(id, (job) => {
@@ -156,25 +174,22 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
     let text = ""
 
     if (upstream) {
-      const upstreamRes = await fetch(upstream, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
+      try {
+        text = await requestUpstream(upstream, token, {
           threadId: marked.threadId,
           message: marked.message,
           model: marked.model,
-        }),
-        cache: "no-store",
-      })
-
-      if (!upstreamRes.ok) {
-        text = `지금 OpenClaw 서버 연결이 불안정합니다.\n\n요청: ${userPrompt.slice(0, 80)}\n\n잠시 후 다시 시도해 주세요.`
-      } else {
-        const data = (await upstreamRes.json()) as { text?: string }
-        text = data.text ?? ""
+        })
+      } catch {
+        try {
+          text = await requestUpstream(backupUpstream, undefined, {
+            threadId: marked.threadId,
+            message: marked.message,
+            model: marked.model,
+          })
+        } catch {
+          text = `지금 OpenClaw 서버 연결이 불안정합니다.\n\n요청: ${userPrompt.slice(0, 80)}\n\n잠시 후 다시 시도해 주세요.`
+        }
       }
     } else {
       await new Promise((r) => setTimeout(r, 350))

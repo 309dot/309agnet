@@ -1,11 +1,32 @@
 import { NextResponse } from "next/server"
 import { requireSession } from "@/lib/auth"
 
+const DEFAULT_BACKUP_CHAT_URL = "https://ocbridge.309designlab.com/chat"
+
 function extractUserPrompt(message: string) {
   const marker = "사용자 요청:\n"
   const idx = message.indexOf(marker)
   if (idx < 0) return message
   return message.slice(idx + marker.length).trim()
+}
+
+async function requestUpstream(url: string, token: string | undefined, payload: { threadId: string; message: string; model: string }) {
+  const upstreamRes = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  })
+
+  if (!upstreamRes.ok) {
+    throw new Error(`upstream_error:${upstreamRes.status}`)
+  }
+
+  const data = (await upstreamRes.json()) as { text?: string }
+  return data.text ?? ""
 }
 
 export async function POST(req: Request) {
@@ -24,33 +45,24 @@ export async function POST(req: Request) {
 
   const upstream = process.env.OPENCLAW_CHAT_URL
   const token = process.env.OPENCLAW_CHAT_TOKEN
+  const backupUpstream = process.env.OPENCLAW_CHAT_BACKUP_URL || DEFAULT_BACKUP_CHAT_URL
 
   if (upstream) {
+    const payload = { threadId, message, model }
+
     try {
-      const upstreamRes = await fetch(upstream, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ threadId, message, model }),
-        cache: "no-store",
-      })
-
-      if (upstreamRes.ok) {
-        const data = (await upstreamRes.json()) as { text?: string }
-        return NextResponse.json({ text: data.text ?? "" })
-      }
-
-      await new Promise((r) => setTimeout(r, 200))
-      return NextResponse.json({
-        text: `지금 OpenClaw 서버 연결이 불안정합니다.\n\n요청: ${userPrompt.slice(0, 80)}\n\n잠시 후 다시 시도해 주세요.`,
-      })
+      const text = await requestUpstream(upstream, token, payload)
+      return NextResponse.json({ text })
     } catch {
-      await new Promise((r) => setTimeout(r, 200))
-      return NextResponse.json({
-        text: `지금 OpenClaw 서버에 연결할 수 없습니다.\n\n요청: ${userPrompt.slice(0, 80)}\n\n잠시 후 다시 시도해 주세요.`,
-      })
+      try {
+        const text = await requestUpstream(backupUpstream, undefined, payload)
+        return NextResponse.json({ text })
+      } catch {
+        await new Promise((r) => setTimeout(r, 200))
+        return NextResponse.json({
+          text: `지금 OpenClaw 서버에 연결할 수 없습니다.\n\n요청: ${userPrompt.slice(0, 80)}\n\n잠시 후 다시 시도해 주세요.`,
+        })
+      }
     }
   }
 
