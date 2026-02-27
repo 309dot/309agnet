@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import crypto from "node:crypto"
 
-export type OpenClawJobStatus = "queued" | "running" | "done" | "error"
+export type OpenClawJobStatus = "queued" | "running" | "done" | "error" | "cancelled"
 
 export type OpenClawJob = {
   id: string
@@ -76,6 +76,13 @@ async function updateOpenClawJob(id: string, updater: (job: OpenClawJob) => Open
   return store.jobs[idx]
 }
 
+export async function cancelOpenClawJob(id: string): Promise<OpenClawJob | null> {
+  return updateOpenClawJob(id, (job) => {
+    if (job.status === "done" || job.status === "error" || job.status === "cancelled") return job
+    return { ...job, status: "cancelled", error: "cancelled_by_user" }
+  })
+}
+
 export async function processOpenClawJob(id: string): Promise<OpenClawJob | null> {
   const upstream = process.env.OPENCLAW_CHAT_URL
   const token = process.env.OPENCLAW_CHAT_TOKEN
@@ -126,8 +133,14 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
       text = `(MVP Mock Async Job) model=${marked.model} thread=${marked.threadId.slice(0, 8)}: ${marked.message.slice(0, 200)}`
     }
 
-    return updateOpenClawJob(id, (job) => ({ ...job, status: "done", result: text, error: undefined }))
+    return updateOpenClawJob(id, (job) => {
+      if (job.status === "cancelled") return job
+      return { ...job, status: "done", result: text, error: undefined }
+    })
   } catch (error) {
-    return updateOpenClawJob(id, (job) => ({ ...job, status: "error", error: String(error) }))
+    return updateOpenClawJob(id, (job) => {
+      if (job.status === "cancelled") return job
+      return { ...job, status: "error", error: String(error) }
+    })
   }
 }

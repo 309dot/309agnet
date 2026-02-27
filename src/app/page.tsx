@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { streamFromOpenClawGateway } from "@/lib/openclaw"
-import { createOpenClawJob, getOpenClawJobStatus } from "@/lib/openclaw-jobs"
+import { cancelOpenClawJob, createOpenClawJob, getOpenClawJobStatus } from "@/lib/openclaw-jobs"
 import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/lib/store"
 
 type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
@@ -47,9 +47,10 @@ export default function HomePage() {
   const [devicesOpen, setDevicesOpen] = useState(false)
   const [sessions, setSessions] = useState<AuthSession[]>([])
   const [openclawRequestMode, setOpenclawRequestMode] = useState(false)
-  const [, setActiveJobId] = useState<string | null>(null)
+  const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const activeJobIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     const loadedThreads = loadThreads()
@@ -86,6 +87,10 @@ export default function HomePage() {
     window.addEventListener("resize", update)
     return () => window.removeEventListener("resize", update)
   }, [])
+
+  useEffect(() => {
+    activeJobIdRef.current = activeJobId
+  }, [activeJobId])
 
   useEffect(() => {
     void (async () => {
@@ -164,6 +169,12 @@ export default function HomePage() {
   const onStop = () => {
     abortRef.current?.abort()
     abortRef.current = null
+
+    const jobId = activeJobIdRef.current
+    if (jobId) {
+      void cancelOpenClawJob(jobId)
+    }
+
     setActiveJobId(null)
     setIsSending(false)
     setStreamingDraft("")
@@ -215,23 +226,32 @@ export default function HomePage() {
 
         while (attempts < maxAttempts) {
           const status = await getOpenClawJobStatus(job.jobId)
+          const agentLogStatus =
+            status.status === "error" || status.status === "cancelled"
+              ? "error"
+              : status.status === "done"
+                ? "done"
+                : "running"
+
           setRunLogs([
             { step: "plan", status: "done", text: "요청을 분석했습니다." },
             {
               step: "agent",
-              status: status.status === "error" ? "error" : status.status === "done" ? "done" : "running",
+              status: agentLogStatus,
               text:
                 status.status === "queued"
-                  ? "Job 대기열에서 처리 대기 중..."
+                  ? `Job 대기열에서 처리 대기 중... (${attempts + 1}/${maxAttempts})`
                   : status.status === "running"
-                    ? "Job 실행 중..."
+                    ? `Job 실행 중... (${attempts + 1}/${maxAttempts})`
                     : status.status === "done"
                       ? "Job 실행 완료"
-                      : status.error ?? "Job 실행 중 오류 발생",
+                      : status.status === "cancelled"
+                        ? "Job이 취소되었습니다."
+                        : status.error ?? "Job 실행 중 오류 발생",
             },
             {
               step: "compose",
-              status: status.status === "done" ? "done" : status.status === "error" ? "queued" : "running",
+              status: status.status === "done" ? "done" : status.status === "error" || status.status === "cancelled" ? "queued" : "running",
               text: status.status === "done" ? "응답 생성 완료" : "응답 반영 대기",
             },
           ])
@@ -241,6 +261,10 @@ export default function HomePage() {
             setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
             setActiveJobId(null)
             return
+          }
+
+          if (status.status === "cancelled") {
+            throw new Error("job_cancelled")
           }
 
           if (status.status === "error") {
@@ -285,14 +309,21 @@ export default function HomePage() {
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return
       const message = String(error)
-      const isConfigError = message.includes("503")
-      const friendly = isConfigError
-        ? "OpenClaw 연동 설정이 아직 안 됐습니다. 관리자에게 OPENCLAW_CHAT_STREAM_URL 설정을 요청해주세요."
-        : "오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+      const isConfigError = message.includes("503") || message.includes("upstream_not_configured")
+      const isCancelled = message.includes("job_cancelled") || message.includes("cancelled")
+      const friendly = isCancelled
+        ? "요청이 취소되었습니다."
+        : isConfigError
+          ? openclawRequestMode
+            ? "OpenClaw 연동 설정이 아직 안 됐습니다. 관리자에게 OPENCLAW_CHAT_URL 설정을 요청해주세요."
+            : "OpenClaw 연동 설정이 아직 안 됐습니다. 관리자에게 OPENCLAW_CHAT_STREAM_URL 설정을 요청해주세요."
+          : "오류가 발생했습니다. 잠시 후 다시 시도해주세요."
       if (isConfigError) setConnectionMode("misconfigured")
 
-      const withAssistant = addMessage(userAdded, "assistant", friendly)
-      setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
+      if (!isCancelled) {
+        const withAssistant = addMessage(userAdded, "assistant", friendly)
+        setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
+      }
       setStreamingDraft("")
       setRunLogs([
         { step: "plan", status: "done", text: "요청을 분석했습니다." },
