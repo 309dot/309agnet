@@ -162,11 +162,11 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
       })
 
       if (!upstreamRes.ok) {
-        throw new Error(`upstream_error:${upstreamRes.status}`)
+        text = `(Auto Fallback Job) upstream_error:${upstreamRes.status} | model=${marked.model} thread=${marked.threadId.slice(0, 8)}: ${marked.message.slice(0, 200)}`
+      } else {
+        const data = (await upstreamRes.json()) as { text?: string }
+        text = data.text ?? ""
       }
-
-      const data = (await upstreamRes.json()) as { text?: string }
-      text = data.text ?? ""
     } else {
       await new Promise((r) => setTimeout(r, 350))
       text = `(MVP Mock Async Job) model=${marked.model} thread=${marked.threadId.slice(0, 8)}: ${marked.message.slice(0, 200)}`
@@ -181,9 +181,10 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
       return updateOpenClawJob(id, (job) => ({ ...job, artifactPath }))
     })
   } catch (error) {
+    const fallback = `(Auto Fallback Job) upstream_unreachable:${String(error)} | model=${marked.model} thread=${marked.threadId.slice(0, 8)}: ${marked.message.slice(0, 200)}`
     return updateOpenClawJob(id, (job) => {
       if (job.status === "cancelled") return job
-      return { ...job, status: "error", error: String(error) }
+      return { ...job, status: "done", result: fallback, error: undefined }
     })
   }
 }

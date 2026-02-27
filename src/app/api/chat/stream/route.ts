@@ -52,19 +52,33 @@ export async function POST(req: Request) {
         cache: "no-store",
       })
 
-      if (!upstreamRes.ok || !upstreamRes.body) {
-        return new Response(`upstream_error:${upstreamRes.status}`, { status: 502 })
+      if (upstreamRes.ok && upstreamRes.body) {
+        return new Response(upstreamRes.body, {
+          headers: {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache, no-transform",
+            Connection: "keep-alive",
+          },
+        })
       }
 
-      return new Response(upstreamRes.body, {
+      return new Response(mockStream(threadId, `${message}\n\n[auto-fallback: upstream_error:${upstreamRes.status}]`, model), {
         headers: {
           "Content-Type": "text/event-stream; charset=utf-8",
           "Cache-Control": "no-cache, no-transform",
           Connection: "keep-alive",
+          "X-309agnet-Mode": "fallback",
         },
       })
     } catch (error) {
-      return new Response(`upstream_unreachable:${String(error)}`, { status: 502 })
+      return new Response(mockStream(threadId, `${message}\n\n[auto-fallback: upstream_unreachable:${String(error)}]`, model), {
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+          "X-309agnet-Mode": "fallback",
+        },
+      })
     }
   }
 

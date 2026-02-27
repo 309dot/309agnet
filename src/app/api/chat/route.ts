@@ -29,14 +29,20 @@ export async function POST(req: Request) {
         cache: "no-store",
       })
 
-      if (!upstreamRes.ok) {
-        return NextResponse.json({ error: `upstream_error:${upstreamRes.status}` }, { status: 502 })
+      if (upstreamRes.ok) {
+        const data = (await upstreamRes.json()) as { text?: string }
+        return NextResponse.json({ text: data.text ?? "" })
       }
 
-      const data = (await upstreamRes.json()) as { text?: string }
-      return NextResponse.json({ text: data.text ?? "" })
+      await new Promise((r) => setTimeout(r, 200))
+      return NextResponse.json({
+        text: `(Auto Fallback) upstream_error:${upstreamRes.status} | model=${model} thread=${threadId.slice(0, 8)}: ${message.slice(0, 120)}`,
+      })
     } catch (error) {
-      return NextResponse.json({ error: `upstream_unreachable:${String(error)}` }, { status: 502 })
+      await new Promise((r) => setTimeout(r, 200))
+      return NextResponse.json({
+        text: `(Auto Fallback) upstream_unreachable:${String(error)} | model=${model} thread=${threadId.slice(0, 8)}: ${message.slice(0, 120)}`,
+      })
     }
   }
 
