@@ -162,7 +162,7 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
       })
 
       if (!upstreamRes.ok) {
-        text = `(Auto Fallback Job) upstream_error:${upstreamRes.status} | model=${marked.model} thread=${marked.threadId.slice(0, 8)}: ${marked.message.slice(0, 200)}`
+        text = `현재 OpenClaw 서버 연결이 불안정해 임시 응답으로 전환했습니다.\n\n요청 요약: ${marked.message.slice(0, 200)}\n\n잠시 후 같은 요청을 다시 보내면 정상 처리될 수 있습니다.`
       } else {
         const data = (await upstreamRes.json()) as { text?: string }
         text = data.text ?? ""
@@ -180,8 +180,8 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
       const artifactPath = await writeJobArtifact(doneJob, doneJob.result)
       return updateOpenClawJob(id, (job) => ({ ...job, artifactPath }))
     })
-  } catch (error) {
-    const fallback = `(Auto Fallback Job) upstream_unreachable:${String(error)} | model=${marked.model} thread=${marked.threadId.slice(0, 8)}: ${marked.message.slice(0, 200)}`
+  } catch {
+    const fallback = `현재 OpenClaw 서버에 연결할 수 없어 임시 응답으로 전환했습니다.\n\n요청 요약: ${marked.message.slice(0, 200)}\n\n잠시 후 다시 시도해주세요.`
     return updateOpenClawJob(id, (job) => {
       if (job.status === "cancelled") return job
       return { ...job, status: "done", result: fallback, error: undefined }

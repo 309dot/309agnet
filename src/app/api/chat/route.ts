@@ -36,12 +36,12 @@ export async function POST(req: Request) {
 
       await new Promise((r) => setTimeout(r, 200))
       return NextResponse.json({
-        text: `(Auto Fallback) upstream_error:${upstreamRes.status} | model=${model} thread=${threadId.slice(0, 8)}: ${message.slice(0, 120)}`,
+        text: `현재 OpenClaw 서버 연결이 불안정해서 임시 응답으로 전환했습니다.\n\n요청 요약: ${message.slice(0, 120)}\n\n잠시 후 같은 요청을 다시 보내면 정상 경로로 처리됩니다.`,
       })
-    } catch (error) {
+    } catch {
       await new Promise((r) => setTimeout(r, 200))
       return NextResponse.json({
-        text: `(Auto Fallback) upstream_unreachable:${String(error)} | model=${model} thread=${threadId.slice(0, 8)}: ${message.slice(0, 120)}`,
+        text: `현재 OpenClaw 서버에 연결할 수 없어 임시 응답으로 전환했습니다.\n\n요청 요약: ${message.slice(0, 120)}\n\n잠시 후 다시 시도해주세요.`,
       })
     }
   }

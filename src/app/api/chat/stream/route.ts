@@ -62,7 +62,7 @@ export async function POST(req: Request) {
         })
       }
 
-      return new Response(mockStream(threadId, `${message}\n\n[auto-fallback: upstream_error:${upstreamRes.status}]`, model), {
+      return new Response(mockStream(threadId, `${message}\n\n[OpenClaw 서버 연결 불안정으로 임시 응답 전환]`, model), {
         headers: {
           "Content-Type": "text/event-stream; charset=utf-8",
           "Cache-Control": "no-cache, no-transform",
@@ -70,8 +70,8 @@ export async function POST(req: Request) {
           "X-309agnet-Mode": "fallback",
         },
       })
-    } catch (error) {
-      return new Response(mockStream(threadId, `${message}\n\n[auto-fallback: upstream_unreachable:${String(error)}]`, model), {
+    } catch {
+      return new Response(mockStream(threadId, `${message}\n\n[OpenClaw 서버 연결 실패로 임시 응답 전환]`, model), {
         headers: {
           "Content-Type": "text/event-stream; charset=utf-8",
           "Cache-Control": "no-cache, no-transform",
