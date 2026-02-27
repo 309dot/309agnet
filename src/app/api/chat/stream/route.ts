@@ -2,13 +2,19 @@ import { requireSession } from "@/lib/auth"
 
 const DEFAULT_MOCK_DELAY = 180
 
-function mockStream(threadId: string, message: string, model: string) {
+function extractUserPrompt(message: string) {
+  const marker = "사용자 요청:\n"
+  const idx = message.indexOf(marker)
+  if (idx < 0) return message
+  return message.slice(idx + marker.length).trim()
+}
+
+function mockStream(message: string) {
   const encoder = new TextEncoder()
   const chunks = [
-    `모델 ${model} 응답 시작... `,
-    `스레드 ${threadId.slice(0, 8)} 기준으로 `,
-    `"${message.slice(0, 80)}" 요청을 처리했습니다. `,
-    "(MVP 스트리밍 데모)",
+    "요청을 처리하는 중입니다. ",
+    `${message.slice(0, 80)} `,
+    "(임시 응답 모드)",
   ]
 
   return new ReadableStream({
@@ -34,6 +40,7 @@ export async function POST(req: Request) {
   const body = (await req.json()) as { threadId?: string; message?: string; model?: string }
   const threadId = body.threadId ?? "unknown"
   const message = body.message ?? ""
+  const userPrompt = extractUserPrompt(message)
   const model = body.model ?? "gpt-5.3-codex"
 
   const upstream = process.env.OPENCLAW_CHAT_STREAM_URL
@@ -62,7 +69,7 @@ export async function POST(req: Request) {
         })
       }
 
-      return new Response(mockStream(threadId, `${message}\n\n[OpenClaw 서버 연결 불안정으로 임시 응답 전환]`, model), {
+      return new Response(mockStream(`요청: ${userPrompt.slice(0, 80)}\n\n[OpenClaw 서버 연결 불안정으로 임시 응답 전환]`), {
         headers: {
           "Content-Type": "text/event-stream; charset=utf-8",
           "Cache-Control": "no-cache, no-transform",
@@ -71,7 +78,7 @@ export async function POST(req: Request) {
         },
       })
     } catch {
-      return new Response(mockStream(threadId, `${message}\n\n[OpenClaw 서버 연결 실패로 임시 응답 전환]`, model), {
+      return new Response(mockStream(`요청: ${userPrompt.slice(0, 80)}\n\n[OpenClaw 서버 연결 실패로 임시 응답 전환]`), {
         headers: {
           "Content-Type": "text/event-stream; charset=utf-8",
           "Cache-Control": "no-cache, no-transform",
@@ -87,7 +94,7 @@ export async function POST(req: Request) {
   }
 
   // Fallback mock stream keeps app functional without external backend wiring.
-  return new Response(mockStream(threadId, message, model), {
+  return new Response(mockStream(userPrompt), {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",

@@ -63,6 +63,13 @@ function trimJobs(jobs: OpenClawJob[]) {
   return [...jobs].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, MAX)
 }
 
+function extractUserPrompt(message: string) {
+  const marker = "사용자 요청:\n"
+  const idx = message.indexOf(marker)
+  if (idx < 0) return message
+  return message.slice(idx + marker.length).trim()
+}
+
 async function writeJobArtifact(job: OpenClawJob, result: string): Promise<string> {
   if (isVercelRuntime()) return "artifacts-disabled-on-vercel"
 
@@ -135,6 +142,8 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
   if (!marked) return null
   if (marked.status !== "running") return marked
 
+  const userPrompt = extractUserPrompt(marked.message)
+
   if (!upstream && !allowMock) {
     return updateOpenClawJob(id, (job) => ({
       ...job,
@@ -162,7 +171,7 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
       })
 
       if (!upstreamRes.ok) {
-        text = `현재 OpenClaw 서버 연결이 불안정해 임시 응답으로 전환했습니다.\n\n요청 요약: ${marked.message.slice(0, 200)}\n\n잠시 후 같은 요청을 다시 보내면 정상 처리될 수 있습니다.`
+        text = `지금 OpenClaw 서버 연결이 불안정합니다.\n\n요청: ${userPrompt.slice(0, 80)}\n\n잠시 후 다시 시도해 주세요.`
       } else {
         const data = (await upstreamRes.json()) as { text?: string }
         text = data.text ?? ""
@@ -181,7 +190,7 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
       return updateOpenClawJob(id, (job) => ({ ...job, artifactPath }))
     })
   } catch {
-    const fallback = `현재 OpenClaw 서버에 연결할 수 없어 임시 응답으로 전환했습니다.\n\n요청 요약: ${marked.message.slice(0, 200)}\n\n잠시 후 다시 시도해주세요.`
+    const fallback = `지금 OpenClaw 서버에 연결할 수 없습니다.\n\n요청: ${userPrompt.slice(0, 80)}\n\n잠시 후 다시 시도해 주세요.`
     return updateOpenClawJob(id, (job) => {
       if (job.status === "cancelled") return job
       return { ...job, status: "done", result: fallback, error: undefined }

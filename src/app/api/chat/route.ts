@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server"
 import { requireSession } from "@/lib/auth"
 
+function extractUserPrompt(message: string) {
+  const marker = "사용자 요청:\n"
+  const idx = message.indexOf(marker)
+  if (idx < 0) return message
+  return message.slice(idx + marker.length).trim()
+}
+
 export async function POST(req: Request) {
   try {
     await requireSession()
@@ -12,6 +19,7 @@ export async function POST(req: Request) {
   const body = (await req.json()) as { threadId?: string; message?: string; model?: string }
   const threadId = body.threadId ?? "unknown"
   const message = body.message ?? ""
+  const userPrompt = extractUserPrompt(message)
   const model = body.model ?? "gpt-5.3-codex"
 
   const upstream = process.env.OPENCLAW_CHAT_URL
@@ -36,12 +44,12 @@ export async function POST(req: Request) {
 
       await new Promise((r) => setTimeout(r, 200))
       return NextResponse.json({
-        text: `현재 OpenClaw 서버 연결이 불안정해서 임시 응답으로 전환했습니다.\n\n요청 요약: ${message.slice(0, 120)}\n\n잠시 후 같은 요청을 다시 보내면 정상 경로로 처리됩니다.`,
+        text: `지금 OpenClaw 서버 연결이 불안정합니다.\n\n요청: ${userPrompt.slice(0, 80)}\n\n잠시 후 다시 시도해 주세요.`,
       })
     } catch {
       await new Promise((r) => setTimeout(r, 200))
       return NextResponse.json({
-        text: `현재 OpenClaw 서버에 연결할 수 없어 임시 응답으로 전환했습니다.\n\n요청 요약: ${message.slice(0, 120)}\n\n잠시 후 다시 시도해주세요.`,
+        text: `지금 OpenClaw 서버에 연결할 수 없습니다.\n\n요청: ${userPrompt.slice(0, 80)}\n\n잠시 후 다시 시도해 주세요.`,
       })
     }
   }
