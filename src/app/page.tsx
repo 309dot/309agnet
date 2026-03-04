@@ -26,7 +26,7 @@ type AuthSession = { id: string; deviceName: string; userAgent: string; createdA
 type RememberedDevice = { id: string; deviceName: string; lastUsedAt: string }
 const MODEL_OPTIONS = [
   { value: "gpt-5.3-codex", label: "Codex (gpt-5.3-codex)" },
-  { value: "claude-opus-4-6", label: "Claude (claude-opus-4-6)" },
+  { value: "claude-sonnet-4-5", label: "Claude (claude-sonnet-4-5)" },
 ] as const
 const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
 const REMEMBERED_DEVICES_KEY = "oc_remembered_devices_v1"
