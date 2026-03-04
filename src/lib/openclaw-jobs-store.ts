@@ -188,10 +188,12 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
             model: marked.model,
           })
         } catch {
+          if (!allowMock) throw new Error("upstream_unreachable")
           text = `지금 OpenClaw 서버 연결이 불안정합니다.\n\n요청: ${userPrompt.slice(0, 80)}\n\n잠시 후 다시 시도해 주세요.`
         }
       }
     } else {
+      if (!allowMock) throw new Error("upstream_not_configured")
       await new Promise((r) => setTimeout(r, 350))
       text = `(MVP Mock Async Job) model=${marked.model} thread=${marked.threadId.slice(0, 8)}: ${marked.message.slice(0, 200)}`
     }
@@ -204,11 +206,11 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
       const artifactPath = await writeJobArtifact(doneJob, doneJob.result)
       return updateOpenClawJob(id, (job) => ({ ...job, artifactPath }))
     })
-  } catch {
-    const fallback = `지금 OpenClaw 서버에 연결할 수 없습니다.\n\n요청: ${userPrompt.slice(0, 80)}\n\n잠시 후 다시 시도해 주세요.`
+  } catch (error) {
+    const err = error instanceof Error ? error.message : "job_failed"
     return updateOpenClawJob(id, (job) => {
       if (job.status === "cancelled") return job
-      return { ...job, status: "done", result: fallback, error: undefined }
+      return { ...job, status: "error", error: err }
     })
   }
 }

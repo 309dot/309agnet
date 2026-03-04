@@ -90,12 +90,16 @@ export async function POST(req: Request) {
           },
         })
       } catch {
+        if (!allowMock) {
+          return new Response("upstream_unreachable", { status: 502 })
+        }
+
         return new Response(mockStream(`요청: ${userPrompt.slice(0, 80)}\n\n[OpenClaw 서버 연결 실패로 임시 응답 전환]`), {
           headers: {
             "Content-Type": "text/event-stream; charset=utf-8",
             "Cache-Control": "no-cache, no-transform",
             Connection: "keep-alive",
-            "X-309agnet-Mode": "fallback",
+            "X-309agnet-Mode": "fallback-mock",
           },
         })
       }
