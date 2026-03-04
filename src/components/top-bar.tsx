@@ -3,7 +3,6 @@
 import { Menu, Play, Shield } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
 
@@ -16,16 +15,12 @@ const modeLabel: Record<ConnectionMode, string> = {
 
 export function TopBar({
   model,
-  modelOptions,
-  onChangeModel,
   onRunPanel,
   onOpenDevices,
   onToggleSidebar,
   connectionMode,
 }: {
   model: string
-  modelOptions: Array<{ value: string; label: string }>
-  onChangeModel: (value: string) => void
   onRunPanel: () => void
   onOpenDevices: () => void
   onToggleSidebar: () => void
@@ -38,20 +33,9 @@ export function TopBar({
           <Menu className="size-4" />
         </Button>
         <h1 className="truncate text-sm font-semibold tracking-tight">309agnet</h1>
-
-        <Select value={model} onValueChange={onChangeModel}>
-          <SelectTrigger className="h-8 w-[160px] text-xs">
-            <SelectValue placeholder="모델 선택" />
-          </SelectTrigger>
-          <SelectContent>
-            {modelOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
+        <Badge variant="secondary" className="hidden text-xs text-foreground sm:inline-flex">
+          {model}
+        </Badge>
         <Badge
           variant={connectionMode === "connected" ? "default" : connectionMode === "misconfigured" ? "destructive" : "secondary"}
           className="text-xs"
