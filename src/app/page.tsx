@@ -24,7 +24,10 @@ import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/li
 type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
 type AuthSession = { id: string; deviceName: string; userAgent: string; createdAt: string; lastSeenAt: string }
 type RememberedDevice = { id: string; deviceName: string; lastUsedAt: string }
-const FIXED_MODEL = "gpt-5.3-codex"
+const MODEL_OPTIONS = [
+  { value: "gpt-5.3-codex", label: "Codex (gpt-5.3-codex)" },
+  { value: "claude-sonnet-4-5", label: "Claude (claude-sonnet-4-5)" },
+] as const
 const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
 const REMEMBERED_DEVICES_KEY = "oc_remembered_devices_v1"
 const RESPONSE_STYLE_PREFIX = "응답 형식 지침: 가독성 좋게 문단을 충분히 나눠서 작성해줘. 제목/머리말/부머리말/본문 구조를 쓰고, 목록은 bullet 또는 번호 목록을 사용하되 번호 목록은 반드시 '1) 2) 3)' 형식으로 써줘. 필요하면 간단한 표도 활용해줘. 이모지는 자연스럽게(과하지 않게) 사용하고 친근한 톤으로 답해줘.\n\n사용자 요청:\n"
@@ -51,6 +54,7 @@ export default function HomePage() {
   const [sessions, setSessions] = useState<AuthSession[]>([])
   const [rememberedDevices, setRememberedDevices] = useState<RememberedDevice[]>([])
   const [openclawRequestMode, setOpenclawRequestMode] = useState(false)
+  const [selectedModel, setSelectedModel] = useState<string>(MODEL_OPTIONS[0].value)
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [lastFailedJobId, setLastFailedJobId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -113,16 +117,35 @@ export default function HomePage() {
   }, [activeJobId])
 
   useEffect(() => {
-    void (async () => {
+    let alive = true
+
+    const checkHealth = async () => {
       try {
         const res = await fetch("/api/health", { cache: "no-store" })
-        if (!res.ok) return
+        if (!alive) return
+        if (!res.ok) {
+          setConnectionMode("unknown")
+          return
+        }
         const data = (await res.json()) as { mode?: ConnectionMode }
         setConnectionMode(data.mode ?? "unknown")
       } catch {
-        setConnectionMode("unknown")
+        if (alive) setConnectionMode("unknown")
       }
-    })()
+    }
+
+    void checkHealth()
+    const timer = window.setInterval(() => void checkHealth(), 10000)
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void checkHealth()
+    }
+    document.addEventListener("visibilitychange", onVisible)
+
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
   }, [])
 
   useEffect(() => {
@@ -237,7 +260,7 @@ export default function HomePage() {
         const job = await createOpenClawJob({
           threadId: userAdded.id,
           message: `${RESPONSE_STYLE_PREFIX}${text}`,
-          model: FIXED_MODEL,
+          model: selectedModel,
         })
 
         setActiveJobId(job.jobId)
@@ -303,7 +326,7 @@ export default function HomePage() {
         {
           threadId: userAdded.id,
           message: `${RESPONSE_STYLE_PREFIX}${text}`,
-          model: FIXED_MODEL,
+          model: selectedModel,
         },
         (partial) => {
           setStreamingDraft(partial)
@@ -346,7 +369,7 @@ export default function HomePage() {
             {
               threadId: userAdded.id,
               message: `${RESPONSE_STYLE_PREFIX}${text}`,
-              model: FIXED_MODEL,
+              model: selectedModel,
             },
             (partial) => {
               setStreamingDraft(partial)
@@ -573,7 +596,9 @@ export default function HomePage() {
 
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar
-          model={FIXED_MODEL}
+          model={selectedModel}
+          modelOptions={[...MODEL_OPTIONS]}
+          onChangeModel={setSelectedModel}
           onRunPanel={() => setRunOpen(true)}
           onOpenDevices={() => {
             setDevicesOpen(true)
