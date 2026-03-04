@@ -8,10 +8,10 @@
       "testStrategy": "10분 간격으로 public/local 200 확인",
       "priority": "high",
       "dependencies": [],
-      "status": "in-progress",
+      "status": "done",
       "assignee": "verifier",
       "subtasks": [],
-      "updatedAt": "2026-02-26T05:30:44.830Z"
+      "updatedAt": "2026-03-04T09:43:34.998Z"
     },
     {
       "id": "2",
@@ -23,10 +23,10 @@
       "dependencies": [
         "1"
       ],
-      "status": "in-progress",
+      "status": "done",
       "assignee": "coder",
       "subtasks": [],
-      "updatedAt": "2026-02-26T05:52:20.299Z"
+      "updatedAt": "2026-03-04T09:43:36.447Z"
     },
     {
       "id": "3",
@@ -36,10 +36,10 @@
       "testStrategy": "dry-run 결과와 실제 set-status 전환 확인",
       "priority": "high",
       "dependencies": [],
-      "status": "pending",
+      "status": "done",
       "assignee": "orchestrator",
       "subtasks": [],
-      "updatedAt": "2026-02-26T05:58:30.354Z"
+      "updatedAt": "2026-03-04T09:43:01.662Z"
     },
     {
       "id": "4",
@@ -165,9 +165,9 @@
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-02-26T07:58:36.792273Z",
+    "lastModified": "2026-03-04T09:43:36.448Z",
     "taskCount": 12,
-    "completedCount": 9,
+    "completedCount": 12,
     "tags": [
       "master"
     ]

@@ -10,8 +10,11 @@ const routingPath = path.join(root, '.taskmaster', 'agent-routing.json')
 const args = new Set(process.argv.slice(2))
 const dryRun = args.has('--dry-run') || args.has('-n')
 
-function run(cmd, cmdArgs) {
-  return spawnSync(cmd, cmdArgs, { encoding: 'utf8' })
+const OPENCLAW_BIN = process.env.OPENCLAW_BIN || 'openclaw'
+const DISPATCH_TIMEOUT_MS = Number(process.env.DISPATCH_TIMEOUT_MS || '15000')
+
+function run(cmd, cmdArgs, extra = {}) {
+  return spawnSync(cmd, cmdArgs, { encoding: 'utf8', ...extra })
 }
 
 function resolveAgent(task, routing) {
@@ -62,16 +65,25 @@ for (const t of pending) {
     continue
   }
 
-  const send = run('openclaw', [
-    'agent',
-    '--agent',
-    agent,
-    '--session-id',
-    sessionId,
-    '--message',
-    message,
-    '--json'
-  ])
+  const send = run(
+    OPENCLAW_BIN,
+    [
+      'agent',
+      '--agent',
+      agent,
+      '--session-id',
+      sessionId,
+      '--message',
+      message,
+      '--json'
+    ],
+    { timeout: DISPATCH_TIMEOUT_MS }
+  )
+
+  if (send.error?.code === 'ETIMEDOUT') {
+    console.error(`Dispatch timeout for task ${t.id} after ${DISPATCH_TIMEOUT_MS}ms`)
+    continue
+  }
 
   if (send.status !== 0) {
     console.error(`Dispatch failed for task ${t.id}: ${send.stderr || send.stdout}`)
