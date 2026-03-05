@@ -294,6 +294,21 @@
       "assignee": "coder",
       "subtasks": [],
       "updatedAt": "2026-03-05T08:23:20.352Z"
+    },
+    {
+      "id": "22",
+      "title": "계정 공통 세션/디바이스 목록 불일치 수정",
+      "description": "Vercel 환경에서 sessions API가 현재 세션만 반환하는 문제를 수정해 동일 계정 모든 디바이스 세션을 표시",
+      "details": "세션 저장소를 KV로 영구화하고 account userId 기준 조회/강제 로그아웃 동작 일치화. 동일 세션 정의를 계정공유 상태로 명확화.",
+      "testStrategy": "서로 다른 2개 디바이스 로그인 후 /api/auth/sessions에서 양쪽 모두 동일 목록 확인",
+      "priority": "high",
+      "dependencies": [
+        "21"
+      ],
+      "status": "in-progress",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-05T09:20:02.202Z"
     }
   ],
   "metadata": {

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
-import { listSessionsForCurrent, requireSession, revokeSessionForCurrent } from "@/lib/auth"
+import { getSessionStoreMode, listSessionsForCurrent, requireSession, revokeSessionForCurrent } from "@/lib/auth"
 
 export async function GET() {
   const current = await requireSession()
   const sessions = await listSessionsForCurrent(current)
-  return NextResponse.json({ ok: true, sessions })
+  const storeMode = await getSessionStoreMode()
+  return NextResponse.json({ ok: true, sessions, storeMode })
 }
 
 export async function DELETE(req: Request) {

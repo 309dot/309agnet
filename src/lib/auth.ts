@@ -32,6 +32,7 @@ const COOKIE_NAME = "oc_session"
 const SESSION_STORE_PATH = path.join(process.cwd(), ".openclaw", "auth-sessions.json")
 const USER_STORE_PATH = path.join(process.cwd(), ".openclaw", "auth-users.json")
 const KV_USER_STORE_KEY = "openclaw:auth:users"
+const KV_SESSION_STORE_KEY = "openclaw:auth:sessions"
 
 type KvConfig = { url: string; token: string }
 
@@ -121,6 +122,30 @@ async function kvWriteUsers(config: KvConfig, users: AuthUser[]) {
   await kvPipeline(config, ["SET", KV_USER_STORE_KEY, JSON.stringify(users)])
 }
 
+async function kvReadSessions(config: KvConfig): Promise<AuthSession[] | null> {
+  const result = await kvPipeline(config, ["GET", KV_SESSION_STORE_KEY])
+  if (result == null) return null
+  if (typeof result !== "string") return null
+
+  try {
+    const parsed = JSON.parse(result)
+    return Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+async function kvWriteSessions(config: KvConfig, sessions: AuthSession[]) {
+  await kvPipeline(config, ["SET", KV_SESSION_STORE_KEY, JSON.stringify(sessions)])
+}
+
+export async function getSessionStoreMode(): Promise<"kv" | "volatile" | "file"> {
+  if (isVercelRuntime()) {
+    return resolveKvConfig() ? "kv" : "volatile"
+  }
+  return "file"
+}
+
 function hashPassword(password: string) {
   const salt = crypto.randomBytes(16).toString("hex")
   const derived = crypto.scryptSync(password, salt, 64).toString("hex")
@@ -182,6 +207,20 @@ function verifyStatelessToken(token: string): Omit<AuthSession, "token"> | null 
 }
 
 async function readSessionStore(): Promise<AuthSession[]> {
+  const kv = resolveKvConfig()
+  if (isVercelRuntime() && kv) {
+    try {
+      const kvSessions = await kvReadSessions(kv)
+      return Array.isArray(kvSessions) ? kvSessions : []
+    } catch {
+      return []
+    }
+  }
+
+  if (isVercelRuntime()) {
+    return []
+  }
+
   try {
     const raw = await fs.readFile(SESSION_STORE_PATH, "utf-8")
     const parsed = JSON.parse(raw)
@@ -192,8 +231,29 @@ async function readSessionStore(): Promise<AuthSession[]> {
 }
 
 async function writeSessionStore(list: AuthSession[]) {
+  const kv = resolveKvConfig()
+  if (isVercelRuntime() && kv) {
+    await kvWriteSessions(kv, list)
+    return
+  }
+
+  if (isVercelRuntime()) {
+    return
+  }
+
   await fs.mkdir(path.dirname(SESSION_STORE_PATH), { recursive: true })
   await fs.writeFile(SESSION_STORE_PATH, JSON.stringify(list, null, 2), "utf-8")
+}
+
+async function upsertSessionStoreEntry(session: AuthSession) {
+  const list = await readSessionStore()
+  const existing = list.find((s) => s.id === session.id)
+  if (existing) {
+    Object.assign(existing, session)
+  } else {
+    list.unshift(session)
+  }
+  await writeSessionStore(list)
 }
 
 async function readUserStore(): Promise<AuthUser[]> {
@@ -337,7 +397,6 @@ export async function updateUserByAdmin(
 }
 
 export async function revokeAllSessionsByUserId(userId: string, actorSession?: AuthSession) {
-  if (isVercelRuntime()) return 0
   const list = await readSessionStore()
   let revokedCount = 0
 
@@ -389,6 +448,10 @@ export async function createSession(
       authType: sessionBase.authType,
     }
 
+    if (resolveKvConfig()) {
+      await upsertSessionStoreEntry(session)
+    }
+
     return session
   }
 
@@ -416,7 +479,11 @@ export async function getSessionFromCookie() {
   if (isVercelRuntime()) {
     const verified = verifyStatelessToken(token)
     if (!verified) return null
-    return { ...verified, token }
+    const currentSession = { ...verified, token }
+    if (resolveKvConfig()) {
+      await upsertSessionStoreEntry(currentSession)
+    }
+    return currentSession
   }
 
   const list = await readSessionStore()
@@ -434,21 +501,19 @@ export async function requireSession() {
 }
 
 export async function listSessions() {
-  if (isVercelRuntime()) return []
   return (await readSessionStore()).filter((s) => !s.revoked)
 }
 
 export async function listSessionsForCurrent(currentSession: AuthSession) {
-  if (isVercelRuntime()) return [currentSession]
   const sessions = await listSessions()
   if (currentSession.userId) {
-    return sessions.filter((s) => s.userId === currentSession.userId)
+    const sameUserSessions = sessions.filter((s) => s.userId === currentSession.userId)
+    return sameUserSessions.length > 0 ? sameUserSessions : [currentSession]
   }
   return sessions.length > 0 ? sessions.filter((s) => s.id === currentSession.id) : [currentSession]
 }
 
 export async function revokeSession(id: string) {
-  if (isVercelRuntime()) return false
   const list = await readSessionStore()
   let changed = false
   for (const s of list) {
@@ -462,10 +527,6 @@ export async function revokeSession(id: string) {
 }
 
 export async function revokeSessionForCurrent(currentSession: AuthSession, targetSessionId: string) {
-  if (isVercelRuntime()) {
-    return currentSession.id === targetSessionId
-  }
-
   const list = await readSessionStore()
   const target = list.find((s) => s.id === targetSessionId && !s.revoked)
   if (!target) return false
