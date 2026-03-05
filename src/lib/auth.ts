@@ -3,6 +3,8 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import crypto from "node:crypto"
 
+export type AuthType = "legacy" | "account"
+
 export type AuthSession = {
   id: string
   token: string
@@ -11,10 +13,24 @@ export type AuthSession = {
   createdAt: string
   lastSeenAt: string
   revoked?: boolean
+  userId?: string
+  authType?: AuthType
+}
+
+export type AuthUser = {
+  id: string
+  email: string
+  name?: string
+  passwordHash: string
+  role: "admin" | "member"
+  active: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 const COOKIE_NAME = "oc_session"
-const STORE_PATH = path.join(process.cwd(), ".openclaw", "auth-sessions.json")
+const SESSION_STORE_PATH = path.join(process.cwd(), ".openclaw", "auth-sessions.json")
+const USER_STORE_PATH = path.join(process.cwd(), ".openclaw", "auth-users.json")
 
 function isVercelRuntime() {
   return process.env.VERCEL === "1" || process.env.VERCEL_ENV !== undefined
@@ -22,6 +38,38 @@ function isVercelRuntime() {
 
 function sessionSecret() {
   return process.env.OPENCLAW_APP_SESSION_SECRET || process.env.OPENCLAW_APP_ACCESS_CODE || "309-session-secret"
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase()
+}
+
+function parseEnvUsers(): AuthUser[] {
+  const raw = process.env.OPENCLAW_AUTH_USERS_JSON
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function hashPassword(password: string) {
+  const salt = crypto.randomBytes(16).toString("hex")
+  const derived = crypto.scryptSync(password, salt, 64).toString("hex")
+  return `scrypt:${salt}:${derived}`
+}
+
+function verifyPasswordHash(password: string, stored: string) {
+  const [algo, salt, hash] = stored.split(":")
+  if (algo !== "scrypt" || !salt || !hash) return false
+  const derived = crypto.scryptSync(password, salt, 64).toString("hex")
+  try {
+    return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(derived, "hex"))
+  } catch {
+    return false
+  }
 }
 
 function signStatelessToken(payload: object) {
@@ -46,6 +94,8 @@ function verifyStatelessToken(token: string): Omit<AuthSession, "token"> | null 
       createdAt: string
       lastSeenAt: string
       exp?: number
+      userId?: string
+      authType?: AuthType
     }
 
     if (typeof parsed.exp === "number" && Date.now() > parsed.exp) return null
@@ -57,15 +107,17 @@ function verifyStatelessToken(token: string): Omit<AuthSession, "token"> | null 
       createdAt: parsed.createdAt,
       lastSeenAt: new Date().toISOString(),
       revoked: false,
+      userId: parsed.userId,
+      authType: parsed.authType,
     }
   } catch {
     return null
   }
 }
 
-async function readStore(): Promise<AuthSession[]> {
+async function readSessionStore(): Promise<AuthSession[]> {
   try {
-    const raw = await fs.readFile(STORE_PATH, "utf-8")
+    const raw = await fs.readFile(SESSION_STORE_PATH, "utf-8")
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? parsed : []
   } catch {
@@ -73,13 +125,89 @@ async function readStore(): Promise<AuthSession[]> {
   }
 }
 
-async function writeStore(list: AuthSession[]) {
-  await fs.mkdir(path.dirname(STORE_PATH), { recursive: true })
-  await fs.writeFile(STORE_PATH, JSON.stringify(list, null, 2), "utf-8")
+async function writeSessionStore(list: AuthSession[]) {
+  await fs.mkdir(path.dirname(SESSION_STORE_PATH), { recursive: true })
+  await fs.writeFile(SESSION_STORE_PATH, JSON.stringify(list, null, 2), "utf-8")
 }
 
-export async function createSession(deviceName: string, userAgent: string) {
+async function readUserStore(): Promise<AuthUser[]> {
+  if (isVercelRuntime()) {
+    return parseEnvUsers()
+  }
+  try {
+    const raw = await fs.readFile(USER_STORE_PATH, "utf-8")
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+async function writeUserStore(list: AuthUser[]) {
+  if (isVercelRuntime()) return
+  await fs.mkdir(path.dirname(USER_STORE_PATH), { recursive: true })
+  await fs.writeFile(USER_STORE_PATH, JSON.stringify(list, null, 2), "utf-8")
+}
+
+export async function findUserByEmail(email: string) {
+  const normalized = normalizeEmail(email)
+  const users = await readUserStore()
+  return users.find((u) => normalizeEmail(u.email) === normalized && u.active) ?? null
+}
+
+export async function verifyUserPassword(email: string, password: string) {
+  const user = await findUserByEmail(email)
+  if (!user) return null
+  if (!verifyPasswordHash(password, user.passwordHash)) return null
+  return user
+}
+
+export async function createUserByAdmin(
+  input: { email: string; password: string; name?: string; role?: "admin" | "member" },
+  adminKey: string,
+) {
+  const issuerKey = process.env.OPENCLAW_ADMIN_ISSUER_KEY || process.env.OPENCLAW_APP_ACCESS_CODE || ""
+  if (!issuerKey || adminKey !== issuerKey) {
+    throw new Error("unauthorized")
+  }
+
+  const email = normalizeEmail(input.email || "")
+  const password = input.password || ""
+  const name = input.name?.trim() || undefined
+  const role = input.role === "admin" ? "admin" : "member"
+
+  if (!email.includes("@") || email.length < 5) throw new Error("invalid_email")
+  if (password.length < 8) throw new Error("invalid_password")
+
+  const users = await readUserStore()
+  const exists = users.some((u) => normalizeEmail(u.email) === email)
+  if (exists) throw new Error("email_exists")
+
   const now = new Date().toISOString()
+  const user: AuthUser = {
+    id: crypto.randomUUID(),
+    email,
+    name,
+    passwordHash: hashPassword(password),
+    role,
+    active: true,
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  users.unshift(user)
+  await writeUserStore(users)
+
+  return user
+}
+
+export async function createSession(
+  deviceName: string,
+  userAgent: string,
+  opts?: { userId?: string; authType?: AuthType },
+) {
+  const now = new Date().toISOString()
+  const authType: AuthType = opts?.authType ?? (opts?.userId ? "account" : "legacy")
 
   if (isVercelRuntime()) {
     const sessionBase = {
@@ -90,6 +218,8 @@ export async function createSession(deviceName: string, userAgent: string) {
       lastSeenAt: now,
       revoked: false,
       exp: Date.now() + 1000 * 60 * 60 * 24 * 30,
+      userId: opts?.userId,
+      authType,
     }
 
     const token = signStatelessToken(sessionBase)
@@ -101,12 +231,14 @@ export async function createSession(deviceName: string, userAgent: string) {
       createdAt: sessionBase.createdAt,
       lastSeenAt: sessionBase.lastSeenAt,
       revoked: false,
+      userId: sessionBase.userId,
+      authType: sessionBase.authType,
     }
 
     return session
   }
 
-  const list = await readStore()
+  const list = await readSessionStore()
   const session: AuthSession = {
     id: crypto.randomUUID(),
     token: crypto.randomBytes(24).toString("hex"),
@@ -115,9 +247,11 @@ export async function createSession(deviceName: string, userAgent: string) {
     createdAt: now,
     lastSeenAt: now,
     revoked: false,
+    userId: opts?.userId,
+    authType,
   }
   list.unshift(session)
-  await writeStore(list)
+  await writeSessionStore(list)
   return session
 }
 
@@ -131,11 +265,11 @@ export async function getSessionFromCookie() {
     return { ...verified, token }
   }
 
-  const list = await readStore()
+  const list = await readSessionStore()
   const found = list.find((s) => s.token === token && !s.revoked)
   if (!found) return null
   found.lastSeenAt = new Date().toISOString()
-  await writeStore(list)
+  await writeSessionStore(list)
   return found
 }
 
@@ -147,12 +281,21 @@ export async function requireSession() {
 
 export async function listSessions() {
   if (isVercelRuntime()) return []
-  return (await readStore()).filter((s) => !s.revoked)
+  return (await readSessionStore()).filter((s) => !s.revoked)
+}
+
+export async function listSessionsForCurrent(currentSession: AuthSession) {
+  if (isVercelRuntime()) return [currentSession]
+  const sessions = await listSessions()
+  if (currentSession.userId) {
+    return sessions.filter((s) => s.userId === currentSession.userId)
+  }
+  return sessions.length > 0 ? sessions.filter((s) => s.id === currentSession.id) : [currentSession]
 }
 
 export async function revokeSession(id: string) {
   if (isVercelRuntime()) return false
-  const list = await readStore()
+  const list = await readSessionStore()
   let changed = false
   for (const s of list) {
     if (s.id === id) {
@@ -160,8 +303,27 @@ export async function revokeSession(id: string) {
       changed = true
     }
   }
-  if (changed) await writeStore(list)
+  if (changed) await writeSessionStore(list)
   return changed
+}
+
+export async function revokeSessionForCurrent(currentSession: AuthSession, targetSessionId: string) {
+  if (isVercelRuntime()) {
+    return currentSession.id === targetSessionId
+  }
+
+  const list = await readSessionStore()
+  const target = list.find((s) => s.id === targetSessionId && !s.revoked)
+  if (!target) return false
+
+  const canRevoke = currentSession.userId
+    ? target.userId === currentSession.userId
+    : target.id === currentSession.id
+
+  if (!canRevoke) return false
+  target.revoked = true
+  await writeSessionStore(list)
+  return true
 }
 
 export async function setAuthCookie(token: string) {

@@ -124,6 +124,44 @@ It verifies end-to-end flow:
 4. openclaw job create
 5. job status poll until done/error/cancelled
 
+## Auth API (legacy + account)
+
+Backward compatibility is kept: the existing access-code login payload still works.
+
+### Admin account issuance
+
+`POST /api/admin/users` with header `x-admin-key` set to `OPENCLAW_ADMIN_ISSUER_KEY` (fallback: `OPENCLAW_APP_ACCESS_CODE`).
+
+```bash
+curl -X POST http://localhost:3000/api/admin/users \
+  -H 'content-type: application/json' \
+  -H 'x-admin-key: YOUR_ADMIN_KEY' \
+  -d '{
+    "email": "member@example.com",
+    "password": "strongpass123",
+    "name": "Member One",
+    "role": "member"
+  }'
+```
+
+### Account login payload
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H 'content-type: application/json' \
+  -d '{
+    "email": "member@example.com",
+    "password": "strongpass123",
+    "deviceName": "MacBook Pro"
+  }'
+```
+
+Legacy payload remains valid:
+
+```json
+{ "code": "<OPENCLAW_APP_ACCESS_CODE>", "deviceName": "My device" }
+```
+
 ## Quick QA checklist
 
 1. Create thread
