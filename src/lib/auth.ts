@@ -2,6 +2,7 @@ import { cookies } from "next/headers"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import crypto from "node:crypto"
+import { kvGetJson, kvSetJson, resolveKvConfig } from "@/lib/kv"
 
 export type AuthType = "legacy" | "account"
 
@@ -33,8 +34,6 @@ const SESSION_STORE_PATH = path.join(process.cwd(), ".openclaw", "auth-sessions.
 const USER_STORE_PATH = path.join(process.cwd(), ".openclaw", "auth-users.json")
 const KV_USER_STORE_KEY = "openclaw:auth:users"
 const KV_SESSION_STORE_KEY = "openclaw:auth:sessions"
-
-type KvConfig = { url: string; token: string }
 
 function isVercelRuntime() {
   return process.env.VERCEL === "1" || process.env.VERCEL_ENV !== undefined
@@ -70,73 +69,22 @@ function parseEnvUsers(): AuthUser[] {
   }
 }
 
-function resolveKvConfig(): KvConfig | null {
-  const url = process.env.KV_REST_API_URL || process.env.OPENCLAW_KV_REST_API_URL
-  const token = process.env.KV_REST_API_TOKEN || process.env.OPENCLAW_KV_REST_API_TOKEN
-  if (!url || !token) return null
-  return { url, token }
+async function kvReadUsers(config: NonNullable<ReturnType<typeof resolveKvConfig>>): Promise<AuthUser[] | null> {
+  const parsed = await kvGetJson<unknown>(config, KV_USER_STORE_KEY)
+  return Array.isArray(parsed) ? (parsed as AuthUser[]) : null
 }
 
-async function kvPipeline(config: KvConfig, command: unknown[]) {
-  const response = await fetch(`${config.url}/pipeline`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify([command]),
-    cache: "no-store",
-  })
-
-  if (!response.ok) {
-    throw new Error(`kv_http_${response.status}`)
-  }
-
-  const json = (await response.json()) as Array<{ result?: unknown; error?: string }>
-  if (!Array.isArray(json) || json.length === 0) {
-    throw new Error("kv_invalid_response")
-  }
-
-  const first = json[0]
-  if (first.error) {
-    throw new Error(`kv_${first.error}`)
-  }
-
-  return first.result
+async function kvWriteUsers(config: NonNullable<ReturnType<typeof resolveKvConfig>>, users: AuthUser[]) {
+  await kvSetJson(config, KV_USER_STORE_KEY, users)
 }
 
-async function kvReadUsers(config: KvConfig): Promise<AuthUser[] | null> {
-  const result = await kvPipeline(config, ["GET", KV_USER_STORE_KEY])
-  if (result == null) return null
-  if (typeof result !== "string") return null
-
-  try {
-    const parsed = JSON.parse(result)
-    return Array.isArray(parsed) ? parsed : null
-  } catch {
-    return null
-  }
+async function kvReadSessions(config: NonNullable<ReturnType<typeof resolveKvConfig>>): Promise<AuthSession[] | null> {
+  const parsed = await kvGetJson<unknown>(config, KV_SESSION_STORE_KEY)
+  return Array.isArray(parsed) ? (parsed as AuthSession[]) : null
 }
 
-async function kvWriteUsers(config: KvConfig, users: AuthUser[]) {
-  await kvPipeline(config, ["SET", KV_USER_STORE_KEY, JSON.stringify(users)])
-}
-
-async function kvReadSessions(config: KvConfig): Promise<AuthSession[] | null> {
-  const result = await kvPipeline(config, ["GET", KV_SESSION_STORE_KEY])
-  if (result == null) return null
-  if (typeof result !== "string") return null
-
-  try {
-    const parsed = JSON.parse(result)
-    return Array.isArray(parsed) ? parsed : null
-  } catch {
-    return null
-  }
-}
-
-async function kvWriteSessions(config: KvConfig, sessions: AuthSession[]) {
-  await kvPipeline(config, ["SET", KV_SESSION_STORE_KEY, JSON.stringify(sessions)])
+async function kvWriteSessions(config: NonNullable<ReturnType<typeof resolveKvConfig>>, sessions: AuthSession[]) {
+  await kvSetJson(config, KV_SESSION_STORE_KEY, sessions)
 }
 
 export async function getSessionStoreMode(): Promise<"kv" | "volatile" | "file"> {

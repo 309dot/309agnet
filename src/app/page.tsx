@@ -83,6 +83,7 @@ export default function HomePage() {
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>("unknown")
   const [healthSecurity, setHealthSecurity] = useState<HealthSecurity | null>(null)
   const [authed, setAuthed] = useState(false)
+  const [isAccountSession, setIsAccountSession] = useState(false)
   const [loginMode, setLoginMode] = useState<LoginMode>("account")
   const [accessCode, setAccessCode] = useState("")
   const [email, setEmail] = useState("")
@@ -114,6 +115,7 @@ export default function HomePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
+  const remoteHydratedRef = useRef(false)
 
   useEffect(() => {
     const loadedThreads = loadThreads()
@@ -134,12 +136,69 @@ export default function HomePage() {
   }, [threads, hydrated])
 
   useEffect(() => {
+    if (!hydrated || !authed || !isAccountSession || remoteHydratedRef.current) return
+    remoteHydratedRef.current = true
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/chat/threads", { cache: "no-store" })
+        if (!res.ok) throw new Error(`load_failed_${res.status}`)
+        const data = (await res.json().catch(() => null)) as { threads?: Thread[] } | null
+        const remoteThreads = Array.isArray(data?.threads) ? data.threads : []
+
+        if (remoteThreads.length > 0) {
+          setThreads(remoteThreads)
+          setActiveThreadId(remoteThreads[0]?.id ?? null)
+          return
+        }
+
+        setThreads((prev) => {
+          if (prev.length > 0) return prev
+          const first = createThread("새 채팅", "orchestrator")
+          setActiveThreadId(first.id)
+          return [first]
+        })
+      } catch (error) {
+        console.warn("[chat-sync] failed to load remote threads", error)
+      }
+    })()
+  }, [hydrated, authed, isAccountSession])
+
+  useEffect(() => {
+    if (!hydrated || !authed || !isAccountSession) return
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch("/api/chat/threads", {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ threads }),
+          })
+          if (!res.ok) throw new Error(`save_failed_${res.status}`)
+        } catch (error) {
+          console.warn("[chat-sync] failed to sync threads", error)
+        }
+      })()
+    }, 700)
+
+    return () => window.clearTimeout(timer)
+  }, [threads, hydrated, authed, isAccountSession])
+
+  useEffect(() => {
     void (async () => {
       try {
         const res = await fetch("/api/auth/me", { cache: "no-store" })
-        setAuthed(res.ok)
+        if (!res.ok) {
+          setAuthed(false)
+          setIsAccountSession(false)
+          return
+        }
+        const data = (await res.json().catch(() => null)) as { session?: { userId?: string; authType?: LoginMode } } | null
+        setAuthed(true)
+        setIsAccountSession(Boolean(data?.session?.userId && data?.session?.authType === "account"))
       } catch {
         setAuthed(false)
+        setIsAccountSession(false)
       }
     })()
   }, [])
@@ -169,6 +228,12 @@ export default function HomePage() {
   useEffect(() => {
     activeJobIdRef.current = activeJobId
   }, [activeJobId])
+
+  useEffect(() => {
+    if (!authed || !isAccountSession) {
+      remoteHydratedRef.current = false
+    }
+  }, [authed, isAccountSession])
 
   useEffect(() => {
     void (async () => {
@@ -244,6 +309,17 @@ export default function HomePage() {
       if (activeThreadId === threadId) setActiveThreadId(nextList[0]?.id ?? null)
       return nextList
     })
+
+    if (authed && isAccountSession) {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/chat/threads/${threadId}`, { method: "DELETE" })
+          if (!res.ok) throw new Error(`delete_failed_${res.status}`)
+        } catch (error) {
+          console.warn("[chat-sync] failed to delete remote thread", error)
+        }
+      })()
+    }
   }
 
   const onStop = () => {
@@ -558,6 +634,7 @@ export default function HomePage() {
     const data = (await res.json().catch(() => null)) as { error?: string } | null
 
     setAuthed(res.ok)
+    setIsAccountSession(res.ok && loginMode === "account")
     if (!res.ok) {
       if (data?.error === "invalid_credentials") {
         alert("계정 정보가 맞지 않아요.")
@@ -600,6 +677,7 @@ export default function HomePage() {
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" })
     setAuthed(false)
+    setIsAccountSession(false)
   }
 
   const issueAccount = async () => {
