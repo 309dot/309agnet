@@ -335,10 +335,25 @@
       "dependencies": [
         "23"
       ],
+      "status": "done",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-05T09:58:05.435Z"
+    },
+    {
+      "id": "25",
+      "title": "채팅 UI 개선 3종(패널 메뉴/최신 앵커/PM 토글 버튼)",
+      "description": "상단 내보내기/불러오기를 패널 메뉴로 이동하고, 스크롤 시 최신 앵커 버튼 추가, 입력창 우측에 PM 토글 버튼 추가",
+      "details": "1) TopBar 또는 우상단 드롭다운 패널로 내보내기/불러오기 이동 2) 메시지 스크롤 이탈 시 하단 앵커 버튼(아래 화살표) 노출 3) ChatComposer openclaw 토글 오른쪽 PM 토글 추가 및 요청 라우팅 반영",
+      "testStrategy": "모바일/데스크탑에서 3개 기능 동작 확인 + build/deploy/verify",
+      "priority": "high",
+      "dependencies": [
+        "24"
+      ],
       "status": "in-progress",
       "assignee": "coder",
       "subtasks": [],
-      "updatedAt": "2026-03-05T09:45:08.637Z"
+      "updatedAt": "2026-03-05T09:58:05.435Z"
     }
   ],
   "metadata": {
