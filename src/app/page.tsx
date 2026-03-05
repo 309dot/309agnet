@@ -22,7 +22,15 @@ import { cancelOpenClawJob, createOpenClawJob, retryOpenClawJob, streamOpenClawJ
 import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/lib/store"
 
 type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
-type AuthSession = { id: string; deviceName: string; userAgent: string; createdAt: string; lastSeenAt: string }
+type LoginMode = "account" | "legacy"
+type AuthSession = {
+  id: string
+  deviceName: string
+  userAgent: string
+  createdAt: string
+  lastSeenAt: string
+  authType?: "account" | "legacy"
+}
 type RememberedDevice = { id: string; deviceName: string; lastUsedAt: string }
 const FIXED_MODEL = "gpt-5.3-codex"
 const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
@@ -59,7 +67,10 @@ export default function HomePage() {
   const [streamingDraft, setStreamingDraft] = useState("")
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>("unknown")
   const [authed, setAuthed] = useState(false)
+  const [loginMode, setLoginMode] = useState<LoginMode>("account")
   const [accessCode, setAccessCode] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [deviceName, setDeviceName] = useState("")
   const [devicesOpen, setDevicesOpen] = useState(false)
   const [sessions, setSessions] = useState<AuthSession[]>([])
@@ -498,16 +509,28 @@ export default function HomePage() {
 
   const login = async () => {
     const normalizedDeviceName = deviceName.trim() || "My device"
+    const payload =
+      loginMode === "account"
+        ? { email: email.trim(), password, deviceName: normalizedDeviceName }
+        : { code: accessCode, deviceName: normalizedDeviceName }
 
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code: accessCode, deviceName: normalizedDeviceName }),
+      body: JSON.stringify(payload),
     })
+
+    const data = (await res.json().catch(() => null)) as { error?: string } | null
 
     setAuthed(res.ok)
     if (!res.ok) {
-      alert("접근 코드가 맞지 않아요.")
+      if (data?.error === "invalid_credentials") {
+        alert("계정 정보가 맞지 않아요.")
+      } else if (data?.error === "invalid_code") {
+        alert("접근 코드가 맞지 않아요.")
+      } else {
+        alert("로그인에 실패했어요.")
+      }
       return
     }
 
@@ -549,9 +572,26 @@ export default function HomePage() {
       <main className="flex h-dvh items-center justify-center bg-background p-4">
         <div className="w-full max-w-sm space-y-3 rounded-lg border p-4">
           <h1 className="text-lg font-semibold">🔒 개인 접근</h1>
-          <p className="text-sm text-muted-foreground">접근 코드로 로그인하세요.</p>
+          <div className="grid grid-cols-2 gap-1 rounded-md border p-1">
+            <Button variant={loginMode === "account" ? "default" : "ghost"} size="sm" onClick={() => setLoginMode("account")}>
+              계정 로그인
+            </Button>
+            <Button variant={loginMode === "legacy" ? "default" : "ghost"} size="sm" onClick={() => setLoginMode("legacy")}>
+              접근코드 로그인
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {loginMode === "account" ? "계정 이메일과 비밀번호로 로그인하세요." : "접근 코드로 로그인하세요."}
+          </p>
           <Input placeholder="디바이스 이름 (선택)" value={deviceName} onChange={(e) => setDeviceName(e.target.value)} />
-          <Input placeholder="접근 코드" type="password" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} />
+          {loginMode === "account" ? (
+            <>
+              <Input placeholder="이메일" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input placeholder="비밀번호" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </>
+          ) : (
+            <Input placeholder="접근 코드" type="password" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} />
+          )}
           <Button className="w-full" onClick={() => void login()}>로그인</Button>
         </div>
       </main>
@@ -717,7 +757,12 @@ export default function HomePage() {
             {sessions.length === 0 ? <p className="text-sm text-muted-foreground">활성 디바이스가 없습니다.</p> : null}
             {sessions.map((s) => (
               <div key={s.id} className="rounded-md border p-2 text-sm">
-                <p className="font-medium">{s.deviceName}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">{s.deviceName}</p>
+                  {s.authType === "account" ? (
+                    <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">account</span>
+                  ) : null}
+                </div>
                 <p className="text-xs text-muted-foreground">최근 활동: {new Date(s.lastSeenAt).toLocaleString()}</p>
                 <p className="truncate text-xs text-muted-foreground">{s.userAgent}</p>
                 <div className="mt-2 flex justify-end">
