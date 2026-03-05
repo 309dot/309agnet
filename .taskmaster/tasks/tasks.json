@@ -245,10 +245,25 @@
       "dependencies": [
         "17"
       ],
+      "status": "done",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-05T07:59:12.409Z"
+    },
+    {
+      "id": "19",
+      "title": "계정 통합 인증 MVP 7단계(env 적용+최종 운영 검증)",
+      "description": "프로덕션 환경변수(UPSTREAM_CONTEXT_SECRET/CHAT_TOKEN/STREAM_TOKEN) 적용 후 health 보안 플래그 true 전환과 운영 인수인계 최종 점검",
+      "details": "Vercel env 설정/재배포, /api/health security true 확인, 계정 발급→로그인→세션관리 e2e, 운영 체크리스트 완료 처리",
+      "testStrategy": "verify:deploy + 수동 e2e + health security 플래그 검증",
+      "priority": "high",
+      "dependencies": [
+        "18"
+      ],
       "status": "in-progress",
       "assignee": "coder",
       "subtasks": [],
-      "updatedAt": "2026-03-05T07:54:14.433Z"
+      "updatedAt": "2026-03-05T07:59:12.409Z"
     }
   ],
   "metadata": {
