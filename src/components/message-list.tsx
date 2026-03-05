@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Bot } from "lucide-react"
@@ -38,8 +39,18 @@ function AssistantText({ content }: { content: string }) {
 }
 
 export function MessageList({ messages, streamingDraft }: { messages: Message[]; streamingDraft?: string }) {
+  const rootRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const viewport = root.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null
+    if (!viewport) return
+    viewport.scrollTop = viewport.scrollHeight
+  }, [messages, streamingDraft])
+
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea ref={rootRef} className="h-full">
       {messages.length === 0 ? (
         <div className="mx-auto max-w-3xl px-2 text-center text-sm text-muted-foreground">첫 메시지를 입력해 대화를 시작하세요.</div>
       ) : (
