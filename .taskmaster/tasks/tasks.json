@@ -264,6 +264,21 @@
       "assignee": "coder",
       "subtasks": [],
       "updatedAt": "2026-03-05T08:05:13.228Z"
+    },
+    {
+      "id": "20",
+      "title": "계정 발급 저장소 핫픽스(Vercel 영구 저장 보장)",
+      "description": "프로덕션에서 계정 발급 성공 후 로그인 실패 문제 수정: 파일 저장 의존 제거 및 Vercel 환경에서 지원되는 영구 저장소로 전환/실패시 명확 에러 처리",
+      "details": "최소 핫픽스: Vercel에서 OPENCLAW_AUTH_USERS_JSON 미구성 시 발급 API를 fail-closed로 처리하고 UI에 안내. 가능하면 Vercel KV/DB 등 저장소 연동 추가.",
+      "testStrategy": "계정 발급 직후 동일 계정 로그인 성공 e2e, 실패 케이스 에러 메시지 확인",
+      "priority": "high",
+      "dependencies": [
+        "19"
+      ],
+      "status": "in-progress",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-05T08:18:51.343Z"
     }
   ],
   "metadata": {
