@@ -32,6 +32,7 @@ type AuthSession = {
   authType?: "account" | "legacy"
 }
 type RememberedDevice = { id: string; deviceName: string; lastUsedAt: string }
+type AdminRole = "member" | "admin"
 const FIXED_MODEL = "gpt-5.3-codex"
 const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
 const REMEMBERED_DEVICES_KEY = "oc_remembered_devices_v1"
@@ -78,6 +79,19 @@ export default function HomePage() {
   const [openclawRequestMode, setOpenclawRequestMode] = useState(false)
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [lastFailedJobId, setLastFailedJobId] = useState<string | null>(null)
+  const [issuePanelOpen, setIssuePanelOpen] = useState(false)
+  const [adminKey, setAdminKey] = useState("")
+  const [issueEmail, setIssueEmail] = useState("")
+  const [issuePassword, setIssuePassword] = useState("")
+  const [issueName, setIssueName] = useState("")
+  const [issueRole, setIssueRole] = useState<AdminRole>("member")
+  const [isIssuing, setIsIssuing] = useState(false)
+  const [issueResult, setIssueResult] = useState<{
+    type: "success" | "error"
+    message: string
+    email?: string
+    role?: AdminRole
+  } | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
@@ -567,6 +581,67 @@ export default function HomePage() {
     setAuthed(false)
   }
 
+  const issueAccount = async () => {
+    if (isIssuing) return
+
+    const normalizedEmail = issueEmail.trim()
+    if (!adminKey.trim() || !normalizedEmail || !issuePassword) {
+      setIssueResult({ type: "error", message: "관리자 키, 이메일, 비밀번호는 필수예요." })
+      return
+    }
+
+    setIsIssuing(true)
+    setIssueResult(null)
+
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-admin-key": adminKey.trim(),
+        },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password: issuePassword,
+          name: issueName.trim() || undefined,
+          role: issueRole,
+        }),
+      })
+
+      const data = (await res.json().catch(() => null)) as { error?: string; email?: string; role?: AdminRole } | null
+
+      if (!res.ok) {
+        const msg =
+          data?.error === "forbidden"
+            ? "관리자 키가 올바르지 않아요."
+            : data?.error === "invalid_payload"
+              ? "입력값을 확인해주세요."
+              : data?.error === "user_exists"
+                ? "이미 존재하는 이메일입니다."
+                : "계정 발급에 실패했어요."
+        setIssueResult({ type: "error", message: msg })
+        return
+      }
+
+      const issuedEmail = data?.email ?? normalizedEmail
+      const issuedRole = data?.role ?? issueRole
+      setIssueResult({
+        type: "success",
+        message: "계정이 발급되었습니다.",
+        email: issuedEmail,
+        role: issuedRole,
+      })
+      setIssueEmail("")
+      setIssuePassword("")
+      setIssueName("")
+      setIssueRole("member")
+    } catch {
+      setIssueResult({ type: "error", message: "네트워크 오류로 발급에 실패했어요." })
+    } finally {
+      setIsIssuing(false)
+    }
+  }
+
   if (!authed) {
     return (
       <main className="flex h-dvh items-center justify-center bg-background p-4">
@@ -652,6 +727,9 @@ export default function HomePage() {
                 마지막 Job 재시도
               </Button>
             ) : null}
+            <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => setIssuePanelOpen(true)}>
+              계정 발급
+            </Button>
             <Button variant="outline" size="sm" onClick={exportThreads}>
               내보내기
             </Button>
@@ -744,6 +822,61 @@ export default function HomePage() {
                 </div>
               ))
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={issuePanelOpen}
+        onOpenChange={(open) => {
+          setIssuePanelOpen(open)
+          if (!open) setIssueResult(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>계정 발급</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Input placeholder="관리자 키" type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} />
+            <Input placeholder="이메일" type="email" value={issueEmail} onChange={(e) => setIssueEmail(e.target.value)} />
+            <Input
+              placeholder="비밀번호"
+              type="password"
+              value={issuePassword}
+              onChange={(e) => setIssuePassword(e.target.value)}
+            />
+            <Input placeholder="이름 (선택)" value={issueName} onChange={(e) => setIssueName(e.target.value)} />
+
+            <Select value={issueRole} onValueChange={(v) => setIssueRole(v as AdminRole)}>
+              <SelectTrigger>
+                <SelectValue placeholder="권한" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="member">member</SelectItem>
+                <SelectItem value="admin">admin</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {issueResult ? (
+              <div
+                className={
+                  issueResult.type === "success"
+                    ? "rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-sm text-emerald-700"
+                    : "rounded-md border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive"
+                }
+              >
+                <p>{issueResult.message}</p>
+                {issueResult.type === "success" ? (
+                  <p className="mt-1 text-xs">발급 계정: {issueResult.email} ({issueResult.role})</p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <Button className="w-full" onClick={() => void issueAccount()} disabled={isIssuing}>
+              {isIssuing ? "발급 중..." : "계정 발급"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
