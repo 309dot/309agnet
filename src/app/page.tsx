@@ -27,7 +27,21 @@ type RememberedDevice = { id: string; deviceName: string; lastUsedAt: string }
 const FIXED_MODEL = "gpt-5.3-codex"
 const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
 const REMEMBERED_DEVICES_KEY = "oc_remembered_devices_v1"
-const RESPONSE_STYLE_PREFIX = "응답 형식 지침: 가독성 좋게 문단을 충분히 나눠서 작성해줘. 제목/머리말/부머리말/본문 구조를 쓰고, 목록은 bullet 또는 번호 목록을 사용하되 번호 목록은 반드시 '1) 2) 3)' 형식으로 써줘. 필요하면 간단한 표도 활용해줘. 이모지는 자연스럽게(과하지 않게) 사용하고 친근한 톤으로 답해줘.\n\n사용자 요청:\n"
+const RESPONSE_STYLE_PREFIX = `응답 형식 지침(데스크탑/모바일 공통 고정):
+- 반드시 아래 섹션 순서로 작성:
+  1) 요약
+  2) 핵심 포인트
+  3) 상세 설명
+  4) 주의/예외
+  5) 다음 액션
+- 헤더(##, ###)와 목록(- 또는 1) 2) 3))을 사용하고, 통문단 금지.
+- 문단은 짧게(1~3문장), 의미 단위마다 줄바꿈.
+- 불필요한 서론 없이 바로 본론 시작.
+- 이모지는 섹션당 최대 1개만 자연스럽게 사용.
+- 한국어로 작성.
+
+사용자 요청:
+`
 
 export default function HomePage() {
   const [threads, setThreads] = useState<Thread[]>([])
