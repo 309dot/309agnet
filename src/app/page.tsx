@@ -33,6 +33,15 @@ type AuthSession = {
 }
 type RememberedDevice = { id: string; deviceName: string; lastUsedAt: string }
 type AdminRole = "member" | "admin"
+type AdminUser = {
+  id: string
+  email: string
+  name?: string
+  role: AdminRole
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
 const FIXED_MODEL = "gpt-5.3-codex"
 const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
 const REMEMBERED_DEVICES_KEY = "oc_remembered_devices_v1"
@@ -92,6 +101,10 @@ export default function HomePage() {
     email?: string
     role?: AdminRole
   } | null>(null)
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([])
+  const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(false)
+  const [adminUserMessageById, setAdminUserMessageById] = useState<Record<string, { type: "success" | "error"; text: string }>>({})
+  const [adminListMessage, setAdminListMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
@@ -612,11 +625,11 @@ export default function HomePage() {
 
       if (!res.ok) {
         const msg =
-          data?.error === "forbidden"
+          data?.error === "unauthorized"
             ? "관리자 키가 올바르지 않아요."
-            : data?.error === "invalid_payload"
+            : data?.error === "invalid_email" || data?.error === "invalid_password"
               ? "입력값을 확인해주세요."
-              : data?.error === "user_exists"
+              : data?.error === "email_exists"
                 ? "이미 존재하는 이메일입니다."
                 : "계정 발급에 실패했어요."
         setIssueResult({ type: "error", message: msg })
@@ -639,6 +652,94 @@ export default function HomePage() {
       setIssueResult({ type: "error", message: "네트워크 오류로 발급에 실패했어요." })
     } finally {
       setIsIssuing(false)
+    }
+  }
+
+  const loadAdminUsers = async () => {
+    if (!adminKey.trim()) {
+      setAdminListMessage({ type: "error", text: "관리자 키를 먼저 입력해주세요." })
+      return
+    }
+    setIsLoadingAdminUsers(true)
+    setAdminListMessage(null)
+
+    try {
+      const res = await fetch("/api/admin/users", {
+        cache: "no-store",
+        headers: { "x-admin-key": adminKey.trim() },
+      })
+      const data = (await res.json().catch(() => null)) as { error?: string; users?: AdminUser[] } | null
+      if (!res.ok) {
+        setAdminUsers([])
+        setAdminListMessage({
+          type: "error",
+          text: data?.error === "unauthorized" ? "관리자 키가 올바르지 않아요." : "계정 목록을 불러오지 못했어요.",
+        })
+        return
+      }
+      setAdminUsers(Array.isArray(data?.users) ? data.users : [])
+      setAdminUserMessageById({})
+      setAdminListMessage({ type: "success", text: "계정 목록을 불러왔어요." })
+    } catch {
+      setAdminListMessage({ type: "error", text: "네트워크 오류로 목록 조회에 실패했어요." })
+    } finally {
+      setIsLoadingAdminUsers(false)
+    }
+  }
+
+  const setInlineUserMessage = (id: string, type: "success" | "error", text: string) => {
+    setAdminUserMessageById((prev) => ({ ...prev, [id]: { type, text } }))
+  }
+
+  const toggleAdminUserActive = async (user: AdminUser) => {
+    if (!adminKey.trim()) {
+      setInlineUserMessage(user.id, "error", "관리자 키를 입력해주세요.")
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "x-admin-key": adminKey.trim(),
+        },
+        body: JSON.stringify({ active: !user.active }),
+      })
+
+      const data = (await res.json().catch(() => null)) as { error?: string; user?: AdminUser } | null
+      if (!res.ok || !data?.user) {
+        setInlineUserMessage(user.id, "error", data?.error === "unauthorized" ? "권한 없음" : "상태 변경 실패")
+        return
+      }
+
+      const updatedUser = data.user
+      setAdminUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)))
+      setInlineUserMessage(updatedUser.id, "success", updatedUser.active ? "활성화됨" : "비활성화됨")
+    } catch {
+      setInlineUserMessage(user.id, "error", "네트워크 오류")
+    }
+  }
+
+  const revokeAllUserSessions = async (user: AdminUser) => {
+    if (!adminKey.trim()) {
+      setInlineUserMessage(user.id, "error", "관리자 키를 입력해주세요.")
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/revoke-all`, {
+        method: "POST",
+        headers: { "x-admin-key": adminKey.trim() },
+      })
+      const data = (await res.json().catch(() => null)) as { error?: string; revokedCount?: number } | null
+      if (!res.ok) {
+        setInlineUserMessage(user.id, "error", data?.error === "unauthorized" ? "권한 없음" : "세션 종료 실패")
+        return
+      }
+      setInlineUserMessage(user.id, "success", `세션 ${data?.revokedCount ?? 0}개 종료`)
+    } catch {
+      setInlineUserMessage(user.id, "error", "네트워크 오류")
     }
   }
 
@@ -830,7 +931,11 @@ export default function HomePage() {
         open={issuePanelOpen}
         onOpenChange={(open) => {
           setIssuePanelOpen(open)
-          if (!open) setIssueResult(null)
+          if (!open) {
+            setIssueResult(null)
+            setAdminListMessage(null)
+            setAdminUserMessageById({})
+          }
         }}
       >
         <DialogContent>
@@ -877,6 +982,53 @@ export default function HomePage() {
             <Button className="w-full" onClick={() => void issueAccount()} disabled={isIssuing}>
               {isIssuing ? "발급 중..." : "계정 발급"}
             </Button>
+
+            <div className="space-y-2 rounded-md border p-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">계정 목록 불러오기</p>
+                <Button variant="outline" size="sm" onClick={() => void loadAdminUsers()} disabled={isLoadingAdminUsers}>
+                  {isLoadingAdminUsers ? "불러오는 중..." : "불러오기"}
+                </Button>
+              </div>
+
+              {adminListMessage ? (
+                <p className={adminListMessage.type === "success" ? "text-xs text-emerald-700" : "text-xs text-destructive"}>
+                  {adminListMessage.text}
+                </p>
+              ) : null}
+
+              <div className="max-h-44 space-y-1 overflow-auto">
+                {adminUsers.length === 0 ? <p className="text-xs text-muted-foreground">불러온 계정이 없습니다.</p> : null}
+                {adminUsers.map((u) => (
+                  <div key={u.id} className="rounded border p-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="min-w-0 truncate font-medium">{u.email}</p>
+                      <span className="shrink-0 rounded border px-1 py-0.5 text-[10px]">{u.role}</span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">상태: {u.active ? "활성" : "비활성"}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void toggleAdminUserActive(u)}>
+                        {u.active ? "비활성화" : "활성화"}
+                      </Button>
+                      <Button variant="destructive" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void revokeAllUserSessions(u)}>
+                        전체 세션 종료
+                      </Button>
+                    </div>
+                    {adminUserMessageById[u.id] ? (
+                      <p
+                        className={
+                          adminUserMessageById[u.id].type === "success"
+                            ? "mt-1 text-[11px] text-emerald-700"
+                            : "mt-1 text-[11px] text-destructive"
+                        }
+                      >
+                        {adminUserMessageById[u.id].text}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

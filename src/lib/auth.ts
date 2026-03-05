@@ -44,6 +44,17 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase()
 }
 
+function issuerKey() {
+  return process.env.OPENCLAW_ADMIN_ISSUER_KEY || process.env.OPENCLAW_APP_ACCESS_CODE || ""
+}
+
+function assertAdminKey(adminKey: string) {
+  const expected = issuerKey()
+  if (!expected || adminKey !== expected) {
+    throw new Error("unauthorized")
+  }
+}
+
 function parseEnvUsers(): AuthUser[] {
   const raw = process.env.OPENCLAW_AUTH_USERS_JSON
   if (!raw) return []
@@ -166,10 +177,7 @@ export async function createUserByAdmin(
   input: { email: string; password: string; name?: string; role?: "admin" | "member" },
   adminKey: string,
 ) {
-  const issuerKey = process.env.OPENCLAW_ADMIN_ISSUER_KEY || process.env.OPENCLAW_APP_ACCESS_CODE || ""
-  if (!issuerKey || adminKey !== issuerKey) {
-    throw new Error("unauthorized")
-  }
+  assertAdminKey(adminKey)
 
   const email = normalizeEmail(input.email || "")
   const password = input.password || ""
@@ -199,6 +207,68 @@ export async function createUserByAdmin(
   await writeUserStore(users)
 
   return user
+}
+
+export async function listUsersByAdmin(adminKey: string) {
+  assertAdminKey(adminKey)
+  const users = await readUserStore()
+  return users.map(({ passwordHash: _passwordHash, ...user }) => user)
+}
+
+export async function updateUserByAdmin(
+  id: string,
+  patch: { active?: boolean; name?: string; role?: "admin" | "member" },
+  adminKey: string,
+) {
+  assertAdminKey(adminKey)
+
+  const users = await readUserStore()
+  const target = users.find((u) => u.id === id)
+  if (!target) throw new Error("user_not_found")
+
+  let changed = false
+  if (typeof patch.active === "boolean" && patch.active !== target.active) {
+    target.active = patch.active
+    changed = true
+  }
+  if (typeof patch.name === "string") {
+    const normalizedName = patch.name.trim() || undefined
+    if (normalizedName !== target.name) {
+      target.name = normalizedName
+      changed = true
+    }
+  }
+  if (patch.role === "admin" || patch.role === "member") {
+    if (patch.role !== target.role) {
+      target.role = patch.role
+      changed = true
+    }
+  }
+
+  if (!changed) return target
+
+  target.updatedAt = new Date().toISOString()
+  await writeUserStore(users)
+  return target
+}
+
+export async function revokeAllSessionsByUserId(userId: string, actorSession?: AuthSession) {
+  if (isVercelRuntime()) return 0
+  const list = await readSessionStore()
+  let revokedCount = 0
+
+  for (const session of list) {
+    if (session.userId !== userId || session.revoked) continue
+    if (actorSession && actorSession.id === session.id) continue
+    session.revoked = true
+    revokedCount += 1
+  }
+
+  if (revokedCount > 0) {
+    await writeSessionStore(list)
+  }
+
+  return revokedCount
 }
 
 export async function createSession(

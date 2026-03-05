@@ -1,5 +1,18 @@
 import { NextResponse } from "next/server"
-import { createUserByAdmin } from "@/lib/auth"
+import { createUserByAdmin, listUsersByAdmin } from "@/lib/auth"
+
+export async function GET(req: Request) {
+  const adminKey = req.headers.get("x-admin-key") || ""
+
+  try {
+    const users = await listUsersByAdmin(adminKey)
+    return NextResponse.json({ ok: true, users })
+  } catch (err) {
+    const code = err instanceof Error ? err.message : "unknown_error"
+    const status = code === "unauthorized" ? 401 : 500
+    return NextResponse.json({ ok: false, error: code }, { status })
+  }
+}
 
 export async function POST(req: Request) {
   const adminKey = req.headers.get("x-admin-key") || ""
@@ -24,6 +37,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
+      email: user.email,
+      role: user.role,
       user: {
         id: user.id,
         email: user.email,
@@ -31,6 +46,7 @@ export async function POST(req: Request) {
         role: user.role,
         active: user.active,
         createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       },
     })
   } catch (err) {
