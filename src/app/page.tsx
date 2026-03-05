@@ -42,6 +42,11 @@ type AdminUser = {
   createdAt: string
   updatedAt: string
 }
+type HealthSecurity = {
+  hasUpstreamContextSecret?: boolean
+  hasChatToken?: boolean
+  hasStreamToken?: boolean
+}
 const FIXED_MODEL = "gpt-5.3-codex"
 const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
 const REMEMBERED_DEVICES_KEY = "oc_remembered_devices_v1"
@@ -76,6 +81,7 @@ export default function HomePage() {
   const [threadSort, setThreadSort] = useState("recent")
   const [streamingDraft, setStreamingDraft] = useState("")
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>("unknown")
+  const [healthSecurity, setHealthSecurity] = useState<HealthSecurity | null>(null)
   const [authed, setAuthed] = useState(false)
   const [loginMode, setLoginMode] = useState<LoginMode>("account")
   const [accessCode, setAccessCode] = useState("")
@@ -169,10 +175,12 @@ export default function HomePage() {
       try {
         const res = await fetch("/api/health", { cache: "no-store" })
         if (!res.ok) return
-        const data = (await res.json()) as { mode?: ConnectionMode }
+        const data = (await res.json()) as { mode?: ConnectionMode; security?: HealthSecurity }
         setConnectionMode(data.mode ?? "unknown")
+        setHealthSecurity(data.security ?? null)
       } catch {
         setConnectionMode("unknown")
+        setHealthSecurity(null)
       }
     })()
   }, [])
@@ -942,6 +950,12 @@ export default function HomePage() {
           <DialogHeader>
             <DialogTitle>계정 발급</DialogTitle>
           </DialogHeader>
+
+          {healthSecurity?.hasUpstreamContextSecret === false ? (
+            <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-800">
+              보안 경고: OPENCLAW_UPSTREAM_CONTEXT_SECRET 이 설정되지 않았습니다. 업스트림 사용자 컨텍스트 서명이 비활성화될 수 있습니다.
+            </p>
+          ) : null}
 
           <div className="space-y-3">
             <Input placeholder="관리자 키" type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} />

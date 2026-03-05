@@ -6,6 +6,9 @@ export async function GET(req: Request) {
   const hasChat = Boolean(chatUrl)
   const hasStream = Boolean(streamUrl)
   const allowMock = process.env.OPENCLAW_ALLOW_MOCK?.trim().toLowerCase() === "true"
+  const hasUpstreamContextSecret = Boolean(process.env.OPENCLAW_UPSTREAM_CONTEXT_SECRET?.trim())
+  const hasChatToken = Boolean(process.env.OPENCLAW_CHAT_TOKEN?.trim())
+  const hasStreamToken = Boolean(process.env.OPENCLAW_CHAT_STREAM_TOKEN?.trim())
 
   const mode = hasChat && hasStream ? "connected" : allowMock ? "mock" : "misconfigured"
 
@@ -20,6 +23,11 @@ export async function GET(req: Request) {
       chatUrl: hasChat,
       streamUrl: hasStream,
       allowMock,
+    },
+    security: {
+      hasUpstreamContextSecret,
+      hasChatToken,
+      hasStreamToken,
     },
     upstream: {
       chatHost,
