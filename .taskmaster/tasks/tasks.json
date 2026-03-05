@@ -215,10 +215,25 @@
       "dependencies": [
         "15"
       ],
+      "status": "done",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-05T07:24:58.417Z"
+    },
+    {
+      "id": "17",
+      "title": "계정 통합 인증 MVP 5단계(OpenClaw 세션 분리 토큰 연동)",
+      "description": "앱 계정 세션과 OpenClaw 호출 세션을 분리하고 서버-서버 토큰 검증 경로 도입",
+      "details": "OPENCLAW_CHAT_TOKEN/STREAM_TOKEN 적용 강화, 사용자 식별 헤더 전달 정책 정의, 권한 경계/감사로그 보강",
+      "testStrategy": "계정 로그인 상태에서 OpenClaw 호출 성공, 잘못된 토큰 차단, 로그 추적 가능성 확인",
+      "priority": "high",
+      "dependencies": [
+        "16"
+      ],
       "status": "in-progress",
       "assignee": "coder",
       "subtasks": [],
-      "updatedAt": "2026-03-05T07:20:22.592Z"
+      "updatedAt": "2026-03-05T07:24:58.417Z"
     }
   ],
   "metadata": {
