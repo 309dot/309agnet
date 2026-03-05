@@ -309,6 +309,21 @@
       "assignee": "coder",
       "subtasks": [],
       "updatedAt": "2026-03-05T09:20:02.202Z"
+    },
+    {
+      "id": "23",
+      "title": "계정 공통 채팅 리스트 동기화(KV 기반)",
+      "description": "localStorage 단독 구조를 계정 서버 저장 병행 구조로 전환하여 동일 계정 모든 디바이스에서 채팅 리스트/메시지 공통 표시",
+      "details": "threads API 추가(GET/PUT/DELETE), KV 저장(openclaw:threads:<userId>), page.tsx에서 로그인 후 서버 동기화 우선 사용",
+      "testStrategy": "A/B 디바이스 동일 계정 로그인 시 채팅 생성/삭제/메시지 추가가 상호 반영되는지 확인",
+      "priority": "high",
+      "dependencies": [
+        "22"
+      ],
+      "status": "in-progress",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-05T09:31:00.255Z"
     }
   ],
   "metadata": {
