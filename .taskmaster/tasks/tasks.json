@@ -185,10 +185,40 @@
       "dependencies": [
         "13"
       ],
+      "status": "done",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-05T07:17:05.217Z"
+    },
+    {
+      "id": "15",
+      "title": "계정 통합 인증 MVP 3단계(관리자 계정 발급 UI)",
+      "description": "앱 내 관리자 화면에서 계정 발급/비활성화 기본 기능 제공",
+      "details": "관리자 키 입력 후 계정 발급 폼(email/password/name/role)과 발급 결과 표시. 최소한의 보안 가이드 문구 포함.",
+      "testStrategy": "관리자 UI에서 계정 발급 성공/실패 케이스 확인, 발급 계정으로 로그인 검증",
+      "priority": "high",
+      "dependencies": [
+        "14"
+      ],
+      "status": "done",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-05T07:20:22.592Z"
+    },
+    {
+      "id": "16",
+      "title": "계정 통합 인증 MVP 4단계(계정 목록/비활성화 + 세션 전체 종료)",
+      "description": "관리자가 발급한 계정을 조회하고 active 상태를 비활성화/복구할 수 있으며 계정 단위 전체 세션 종료를 지원",
+      "details": "관리자 API 추가(GET/PATCH users, POST sessions/revoke-all) 및 UI 최소 연동",
+      "testStrategy": "비활성화 계정 로그인 차단, 재활성화 후 로그인 복구, 전체 세션 종료 동작 확인",
+      "priority": "high",
+      "dependencies": [
+        "15"
+      ],
       "status": "in-progress",
       "assignee": "coder",
       "subtasks": [],
-      "updatedAt": "2026-03-05T07:10:12.139Z"
+      "updatedAt": "2026-03-05T07:20:22.592Z"
     }
   ],
   "metadata": {
