@@ -1,4 +1,5 @@
 import { requireSession } from "@/lib/auth"
+import { buildSignedUpstreamUserHeaders } from "@/lib/auth-util"
 
 const DEFAULT_MOCK_DELAY = 180
 const DEFAULT_BACKUP_STREAM_URL = "https://ocbridge.309designlab.com/chat/stream"
@@ -30,12 +31,18 @@ function mockStream(message: string) {
   })
 }
 
-async function requestUpstreamStream(url: string, token: string | undefined, payload: { threadId: string; message: string; model: string }) {
+async function requestUpstreamStream(
+  url: string,
+  token: string | undefined,
+  payload: { threadId: string; message: string; model: string },
+  userHeaders?: Record<string, string>,
+) {
   const upstreamRes = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(userHeaders ?? {}),
     },
     body: JSON.stringify(payload),
     cache: "no-store",
@@ -49,8 +56,9 @@ async function requestUpstreamStream(url: string, token: string | undefined, pay
 }
 
 export async function POST(req: Request) {
+  let session: Awaited<ReturnType<typeof requireSession>> | null = null
   try {
-    await requireSession()
+    session = await requireSession()
   } catch {
     return new Response("unauthorized", { status: 401 })
   }
@@ -68,9 +76,10 @@ export async function POST(req: Request) {
 
   if (upstream) {
     const payload = { threadId, message, model }
+    const userHeaders = session ? buildSignedUpstreamUserHeaders(session) : undefined
 
     try {
-      const bodyStream = await requestUpstreamStream(upstream, token, payload)
+      const bodyStream = await requestUpstreamStream(upstream, token, payload, userHeaders)
       return new Response(bodyStream, {
         headers: {
           "Content-Type": "text/event-stream; charset=utf-8",
@@ -80,7 +89,7 @@ export async function POST(req: Request) {
       })
     } catch {
       try {
-        const bodyStream = await requestUpstreamStream(backupUpstream, undefined, payload)
+        const bodyStream = await requestUpstreamStream(backupUpstream, undefined, payload, userHeaders)
         return new Response(bodyStream, {
           headers: {
             "Content-Type": "text/event-stream; charset=utf-8",

@@ -9,6 +9,7 @@ export type OpenClawJob = {
   threadId: string
   message: string
   model: string
+  userContextHeaders?: Record<string, string>
   status: OpenClawJobStatus
   result?: string
   error?: string
@@ -83,7 +84,9 @@ async function writeJobArtifact(job: OpenClawJob, result: string): Promise<strin
   return path.relative(process.cwd(), fullPath)
 }
 
-export async function createOpenClawJob(input: Pick<OpenClawJob, "threadId" | "message" | "model">): Promise<OpenClawJob> {
+export async function createOpenClawJob(
+  input: Pick<OpenClawJob, "threadId" | "message" | "model"> & { userContextHeaders?: Record<string, string> },
+): Promise<OpenClawJob> {
   const now = new Date().toISOString()
   const store = await readStore()
   const job: OpenClawJob = {
@@ -91,6 +94,7 @@ export async function createOpenClawJob(input: Pick<OpenClawJob, "threadId" | "m
     threadId: input.threadId,
     message: input.message,
     model: input.model,
+    userContextHeaders: input.userContextHeaders,
     status: "queued",
     createdAt: now,
     updatedAt: now,
@@ -130,12 +134,18 @@ export async function cancelOpenClawJob(id: string): Promise<OpenClawJob | null>
   })
 }
 
-async function requestUpstream(url: string, token: string | undefined, payload: { threadId: string; message: string; model: string }) {
+async function requestUpstream(
+  url: string,
+  token: string | undefined,
+  payload: { threadId: string; message: string; model: string },
+  userHeaders?: Record<string, string>,
+) {
   const upstreamRes = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(userHeaders ?? {}),
     },
     body: JSON.stringify(payload),
     cache: "no-store",
@@ -175,18 +185,28 @@ export async function processOpenClawJob(id: string): Promise<OpenClawJob | null
 
     if (upstream) {
       try {
-        text = await requestUpstream(upstream, token, {
-          threadId: marked.threadId,
-          message: marked.message,
-          model: marked.model,
-        })
-      } catch {
-        try {
-          text = await requestUpstream(backupUpstream, undefined, {
+        text = await requestUpstream(
+          upstream,
+          token,
+          {
             threadId: marked.threadId,
             message: marked.message,
             model: marked.model,
-          })
+          },
+          marked.userContextHeaders,
+        )
+      } catch {
+        try {
+          text = await requestUpstream(
+            backupUpstream,
+            undefined,
+            {
+              threadId: marked.threadId,
+              message: marked.message,
+              model: marked.model,
+            },
+            marked.userContextHeaders,
+          )
         } catch {
           text = `지금 OpenClaw 서버 연결이 불안정합니다.\n\n요청: ${userPrompt.slice(0, 80)}\n\n잠시 후 다시 시도해 주세요.`
         }

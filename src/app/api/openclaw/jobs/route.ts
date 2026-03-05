@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server"
 import { requireSession } from "@/lib/auth"
+import { buildSignedUpstreamUserHeaders } from "@/lib/auth-util"
 import { createOpenClawJob, processOpenClawJob } from "@/lib/openclaw-jobs-store"
 
 export async function POST(req: Request) {
+  let session: Awaited<ReturnType<typeof requireSession>> | null = null
   try {
-    await requireSession()
+    session = await requireSession()
   } catch {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
@@ -18,7 +20,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "message_required" }, { status: 400 })
   }
 
-  const job = await createOpenClawJob({ threadId, message, model })
+  const job = await createOpenClawJob({
+    threadId,
+    message,
+    model,
+    userContextHeaders: session ? buildSignedUpstreamUserHeaders(session) : undefined,
+  })
   void processOpenClawJob(job.id)
 
   return NextResponse.json({

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { requireSession } from "@/lib/auth"
+import { buildSignedUpstreamUserHeaders } from "@/lib/auth-util"
 
 const DEFAULT_BACKUP_CHAT_URL = "https://ocbridge.309designlab.com/chat"
 
@@ -10,12 +11,18 @@ function extractUserPrompt(message: string) {
   return message.slice(idx + marker.length).trim()
 }
 
-async function requestUpstream(url: string, token: string | undefined, payload: { threadId: string; message: string; model: string }) {
+async function requestUpstream(
+  url: string,
+  token: string | undefined,
+  payload: { threadId: string; message: string; model: string },
+  userHeaders?: Record<string, string>,
+) {
   const upstreamRes = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(userHeaders ?? {}),
     },
     body: JSON.stringify(payload),
     cache: "no-store",
@@ -30,8 +37,9 @@ async function requestUpstream(url: string, token: string | undefined, payload: 
 }
 
 export async function POST(req: Request) {
+  let session: Awaited<ReturnType<typeof requireSession>> | null = null
   try {
-    await requireSession()
+    session = await requireSession()
   } catch {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
@@ -49,13 +57,14 @@ export async function POST(req: Request) {
 
   if (upstream) {
     const payload = { threadId, message, model }
+    const userHeaders = session ? buildSignedUpstreamUserHeaders(session) : undefined
 
     try {
-      const text = await requestUpstream(upstream, token, payload)
+      const text = await requestUpstream(upstream, token, payload, userHeaders)
       return NextResponse.json({ text })
     } catch {
       try {
-        const text = await requestUpstream(backupUpstream, undefined, payload)
+        const text = await requestUpstream(backupUpstream, undefined, payload, userHeaders)
         return NextResponse.json({ text })
       } catch {
         await new Promise((r) => setTimeout(r, 200))

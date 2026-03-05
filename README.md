@@ -52,6 +52,24 @@ For real OpenClaw replies in Vercel, set env vars:
 - `OPENCLAW_CHAT_TOKEN` (optional bearer token)
 - `OPENCLAW_CHAT_STREAM_URL` (SSE endpoint)
 - `OPENCLAW_CHAT_STREAM_TOKEN` (optional bearer token)
+- `OPENCLAW_UPSTREAM_CONTEXT_SECRET` (**recommended**; used to sign per-session context headers)
+
+### Session separation and upstream trace headers
+
+App login/session and OpenClaw upstream auth are intentionally separated:
+
+- App user authentication stays in this app (`oc_session` cookie, account/legacy login).
+- Upstream OpenClaw authentication stays bearer-token based (`OPENCLAW_CHAT_TOKEN`, `OPENCLAW_CHAT_STREAM_TOKEN`).
+- For traceability, each upstream chat call also includes internal signed context headers:
+  - `X-309-User-Context`: base64url JSON `{ sessionId, userId|null, authType, deviceName, ts }`
+  - `X-309-User-Signature`: HMAC-SHA256 signature of the context value
+
+Signing key resolution order:
+1. `OPENCLAW_UPSTREAM_CONTEXT_SECRET` (preferred)
+2. `OPENCLAW_CHAT_TOKEN`
+3. `OPENCLAW_APP_SESSION_SECRET` / `OPENCLAW_APP_ACCESS_CODE`
+
+No password/hash or other sensitive auth material is forwarded upstream in these headers.
 
 Optional local/demo fallback:
 - `OPENCLAW_ALLOW_MOCK=true` (enables mock responses when upstream is missing)
