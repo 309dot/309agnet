@@ -161,6 +161,34 @@
       "assignee": "verifier",
       "subtasks": [],
       "updatedAt": "2026-02-26T07:58:36.792273Z"
+    },
+    {
+      "id": "13",
+      "title": "계정 통합 인증 MVP 1단계(스키마+관리자 발급 API)",
+      "description": "device-code 기반에서 account 기반으로 전환을 위한 DB 스키마(users/sessions/device_sessions)와 관리자 계정 발급 API 추가",
+      "details": "Prisma(또는 기존 저장소)에 사용자/세션/디바이스 모델 추가, /api/admin/users 발급 엔드포인트 구현, 기존 로그인은 병행 유지",
+      "testStrategy": "관리자 API로 계정 발급 후 로그인 성공 및 디바이스 목록 조회 확인",
+      "priority": "high",
+      "dependencies": [],
+      "status": "done",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-05T07:10:12.139Z"
+    },
+    {
+      "id": "14",
+      "title": "계정 통합 인증 MVP 2단계(UI 로그인 전환+디바이스 관리 연동)",
+      "description": "로그인 화면에 계정 로그인(email/password) 추가 및 디바이스 관리를 계정 기준으로 표시/강제 로그아웃 UX 정리",
+      "details": "기존 접근코드 로그인 병행 유지, 계정 로그인 우선 안내, sessions 화면 문구/동작 검증, 모바일/데스크탑 동일 동작",
+      "testStrategy": "계정 로그인 후 다중 디바이스 세션 표시 및 강제 로그아웃 e2e 확인",
+      "priority": "high",
+      "dependencies": [
+        "13"
+      ],
+      "status": "in-progress",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-05T07:10:12.139Z"
     }
   ],
   "metadata": {
