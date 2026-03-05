@@ -1,6 +1,6 @@
 "use client"
 
-import { Bot } from "lucide-react"
+import { Bot, Sparkles } from "lucide-react"
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -10,11 +10,15 @@ export function ChatComposer({
   disabled = false,
   openclawMode = false,
   onToggleOpenclawMode,
+  pmMode = false,
+  onTogglePmMode,
 }: {
   onSend: (text: string) => void
   disabled?: boolean
   openclawMode?: boolean
   onToggleOpenclawMode?: () => void
+  pmMode?: boolean
+  onTogglePmMode?: () => void
 }) {
   const [text, setText] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -52,6 +56,19 @@ export function ChatComposer({
           <Bot className="size-4" />
         </Button>
 
+        <Button
+          type="button"
+          variant={pmMode ? "default" : "outline"}
+          size="icon"
+          onClick={onTogglePmMode}
+          disabled={disabled}
+          className="h-10 w-10 shrink-0 rounded-full"
+          title={pmMode ? "PM 모드 ON" : "PM 모드 OFF"}
+          aria-label="PM 모드 토글"
+        >
+          <Sparkles className="size-4" />
+        </Button>
+
         <Textarea
           ref={textareaRef}
           rows={1}
@@ -60,7 +77,7 @@ export function ChatComposer({
             setText(e.target.value)
             resize()
           }}
-          placeholder={openclawMode ? "openclaw 작업 요청을 입력하세요." : "메세지를 입력하세요."}
+          placeholder={openclawMode ? "openclaw 작업 요청을 입력하세요." : pmMode ? "PM 모드로 메세지를 입력하세요." : "메세지를 입력하세요."}
           className="h-10 min-h-10 resize-none bg-background text-foreground"
           disabled={disabled}
           onKeyDown={(e) => {

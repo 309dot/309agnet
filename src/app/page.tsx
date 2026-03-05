@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { MoreVertical } from "lucide-react"
 import { ChatComposer } from "@/components/chat-composer"
 import { MessageList } from "@/components/message-list"
 import { RunLog, RunPanel } from "@/components/run-panel"
@@ -8,6 +9,7 @@ import { SidebarThreads } from "@/components/sidebar-threads"
 import { TopBar } from "@/components/top-bar"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -48,6 +50,7 @@ type HealthSecurity = {
   hasStreamToken?: boolean
 }
 const FIXED_MODEL = "gpt-5.3-codex"
+const PM_MODEL = "anthropic/claude-opus-4-6"
 const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
 const REMEMBERED_DEVICES_KEY = "oc_remembered_devices_v1"
 const RESPONSE_STYLE_PREFIX = `응답 형식 지침(데스크탑/모바일 공통 고정):
@@ -93,6 +96,7 @@ export default function HomePage() {
   const [sessions, setSessions] = useState<AuthSession[]>([])
   const [rememberedDevices, setRememberedDevices] = useState<RememberedDevice[]>([])
   const [openclawRequestMode, setOpenclawRequestMode] = useState(false)
+  const [pmMode, setPmMode] = useState(false)
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [lastFailedJobId, setLastFailedJobId] = useState<string | null>(null)
   const [issuePanelOpen, setIssuePanelOpen] = useState(false)
@@ -298,6 +302,7 @@ export default function HomePage() {
   }, [threads])
 
   const activeThread = useMemo(() => threads.find((t) => t.id === activeThreadId) ?? null, [threads, activeThreadId])
+  const selectedModel = pmMode ? PM_MODEL : FIXED_MODEL
 
   const agentOptions = useMemo(() => {
     const set = new Set<string>()
@@ -391,7 +396,7 @@ export default function HomePage() {
       targetThread = created
     }
 
-    const userAdded = addMessage(targetThread, "user", text, { openclawMode: openclawRequestMode })
+    const userAdded = addMessage(targetThread, "user", text, { openclawMode: openclawRequestMode, pmMode })
     setThreads((prev) => prev.map((t) => (t.id === userAdded.id ? userAdded : t)))
 
     try {
@@ -405,7 +410,7 @@ export default function HomePage() {
         const job = await createOpenClawJob({
           threadId: userAdded.id,
           message: `${RESPONSE_STYLE_PREFIX}${text}`,
-          model: FIXED_MODEL,
+          model: selectedModel,
         })
 
         setActiveJobId(job.jobId)
@@ -471,7 +476,7 @@ export default function HomePage() {
         {
           threadId: userAdded.id,
           message: `${RESPONSE_STYLE_PREFIX}${text}`,
-          model: FIXED_MODEL,
+          model: selectedModel,
         },
         (partial) => {
           setStreamingDraft(partial)
@@ -514,7 +519,7 @@ export default function HomePage() {
             {
               threadId: userAdded.id,
               message: `${RESPONSE_STYLE_PREFIX}${text}`,
-              model: FIXED_MODEL,
+              model: selectedModel,
             },
             (partial) => {
               setStreamingDraft(partial)
@@ -923,7 +928,7 @@ export default function HomePage() {
 
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar
-          model={FIXED_MODEL}
+          model={selectedModel}
           onRunPanel={() => setRunOpen(true)}
           onOpenDevices={() => {
             setDevicesOpen(true)
@@ -951,12 +956,17 @@ export default function HomePage() {
             <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => setIssuePanelOpen(true)}>
               계정 발급
             </Button>
-            <Button variant="outline" size="sm" onClick={exportThreads}>
-              내보내기
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-              불러오기
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8" aria-label="도구 메뉴">
+                  <MoreVertical className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={exportThreads}>내보내기</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>불러오기</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <input
               ref={fileInputRef}
               type="file"
@@ -975,6 +985,8 @@ export default function HomePage() {
           disabled={isSending}
           openclawMode={openclawRequestMode}
           onToggleOpenclawMode={() => setOpenclawRequestMode((v) => !v)}
+          pmMode={pmMode}
+          onTogglePmMode={() => setPmMode((v) => !v)}
         />
       </section>
 

@@ -6,6 +6,7 @@ export interface Message {
   content: string
   createdAt: string
   openclawMode?: boolean
+  pmMode?: boolean
 }
 
 export interface Thread {
@@ -85,7 +86,7 @@ export function addMessage(
   thread: Thread,
   role: Role,
   content: string,
-  options?: { openclawMode?: boolean },
+  options?: { openclawMode?: boolean; pmMode?: boolean },
 ): Thread {
   const msg: Message = {
     id: uid("msg"),
@@ -93,6 +94,7 @@ export function addMessage(
     content,
     createdAt: new Date().toISOString(),
     openclawMode: options?.openclawMode,
+    pmMode: options?.pmMode,
   }
   return {
     ...thread,
