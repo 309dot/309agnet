@@ -230,10 +230,25 @@
       "dependencies": [
         "16"
       ],
+      "status": "done",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-05T07:54:14.433Z"
+    },
+    {
+      "id": "18",
+      "title": "계정 통합 인증 MVP 6단계(운영 가이드+보안 점검 체크리스트)",
+      "description": "관리자용 사용 가이드와 운영 점검 체크리스트를 서비스 내/README에 반영하고 환경변수 누락 점검 UX 추가",
+      "details": "계정 발급/비활성/세션종료 절차, OPENCLAW_UPSTREAM_CONTEXT_SECRET 설정 가이드, 헬스체크/장애대응 체크리스트 문서화. 필요시 /api/health에 보안 설정 진단 필드 추가",
+      "testStrategy": "문서 경로 확인, /api/health 응답에서 보안 설정 상태 확인, 기본 사용 플로우 수동 점검",
+      "priority": "medium",
+      "dependencies": [
+        "17"
+      ],
       "status": "in-progress",
       "assignee": "coder",
       "subtasks": [],
-      "updatedAt": "2026-03-05T07:24:58.417Z"
+      "updatedAt": "2026-03-05T07:54:14.433Z"
     }
   ],
   "metadata": {
