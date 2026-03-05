@@ -14,6 +14,7 @@
 
 > `OPENCLAW_UPSTREAM_CONTEXT_SECRET`는 `X-309-User-Context` 서명(`X-309-User-Signature`)에 사용됩니다.
 > 미설정 시 컨텍스트 서명 검증이 약화될 수 있습니다.
+> `OPENCLAW_CHAT_TOKEN` / `OPENCLAW_CHAT_STREAM_TOKEN`을 임시 placeholder로 채운 경우, 실제 업스트림 토큰 발급 즉시 교체(rotate)하세요.
 
 ## 설정 확인 명령어
 

@@ -54,6 +54,8 @@ For real OpenClaw replies in Vercel, set env vars:
 - `OPENCLAW_CHAT_STREAM_TOKEN` (optional bearer token)
 - `OPENCLAW_UPSTREAM_CONTEXT_SECRET` (**recommended**; used to sign per-session context headers)
 
+> If you temporarily set non-empty placeholder values for `OPENCLAW_CHAT_TOKEN` / `OPENCLAW_CHAT_STREAM_TOKEN` to satisfy fail-closed health checks, rotate them to real upstream tokens as soon as they are issued.
+
 ### Session separation and upstream trace headers
 
 App login/session and OpenClaw upstream auth are intentionally separated:
