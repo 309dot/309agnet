@@ -81,9 +81,14 @@ const server = http.createServer(async (req, res) => {
       const body = await readJson(req)
       const text = await runAgent(body)
       sseHeaders(res)
-      const chunks = text.match(/.{1,32}/g) || [text]
+      const chunks = text.match(/[\s\S]{1,32}/g) || [text]
       for (const c of chunks) {
-        res.write(`data: ${c}\n\n`)
+        // Preserve newlines by splitting SSE data lines explicitly.
+        const lines = String(c).split("\n")
+        for (const line of lines) {
+          res.write(`data: ${line}\n`)
+        }
+        res.write("\n")
       }
       res.write("event: done\ndata: [DONE]\n\n")
       res.end()

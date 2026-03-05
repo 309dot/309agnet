@@ -51,12 +51,16 @@ export async function streamFromOpenClawGateway(
     buffer = events.pop() ?? ""
 
     for (const e of events) {
-      const line = e
+      const dataLines = e
         .split("\n")
-        .find((l) => l.startsWith("data:"))
-        ?.replace(/^data:\s?/, "")
-      if (!line || line === "[DONE]") continue
-      full += line
+        .filter((l) => l.startsWith("data:"))
+        .map((l) => l.replace(/^data:\s?/, ""))
+
+      if (!dataLines.length) continue
+      const payload = dataLines.join("\n")
+      if (payload === "[DONE]") continue
+
+      full += payload
       onChunk(full)
     }
   }
