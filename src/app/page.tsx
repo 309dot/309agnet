@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChatComposer } from "@/components/chat-composer"
 import { MessageList } from "@/components/message-list"
 import { RunLog, RunPanel } from "@/components/run-panel"
@@ -116,6 +116,34 @@ export default function HomePage() {
   const abortRef = useRef<AbortController | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
   const remoteHydratedRef = useRef(false)
+  const threadsEventSourceRef = useRef<EventSource | null>(null)
+
+  const loadRemoteThreads = useCallback(async () => {
+    try {
+      const res = await fetch("/api/chat/threads", { cache: "no-store" })
+      if (!res.ok) throw new Error(`load_failed_${res.status}`)
+      const data = (await res.json().catch(() => null)) as { threads?: Thread[] } | null
+      const remoteThreads = Array.isArray(data?.threads) ? data.threads : []
+
+      if (remoteThreads.length > 0) {
+        setThreads(remoteThreads)
+        setActiveThreadId((current) => {
+          if (current && remoteThreads.some((thread) => thread.id === current)) return current
+          return remoteThreads[0]?.id ?? null
+        })
+        return
+      }
+
+      setThreads((prev) => {
+        if (prev.length > 0) return prev
+        const first = createThread("새 채팅", "orchestrator")
+        setActiveThreadId(first.id)
+        return [first]
+      })
+    } catch (error) {
+      console.warn("[chat-sync] failed to load remote threads", error)
+    }
+  }, [])
 
   useEffect(() => {
     const loadedThreads = loadThreads()
@@ -138,31 +166,8 @@ export default function HomePage() {
   useEffect(() => {
     if (!hydrated || !authed || !isAccountSession || remoteHydratedRef.current) return
     remoteHydratedRef.current = true
-
-    void (async () => {
-      try {
-        const res = await fetch("/api/chat/threads", { cache: "no-store" })
-        if (!res.ok) throw new Error(`load_failed_${res.status}`)
-        const data = (await res.json().catch(() => null)) as { threads?: Thread[] } | null
-        const remoteThreads = Array.isArray(data?.threads) ? data.threads : []
-
-        if (remoteThreads.length > 0) {
-          setThreads(remoteThreads)
-          setActiveThreadId(remoteThreads[0]?.id ?? null)
-          return
-        }
-
-        setThreads((prev) => {
-          if (prev.length > 0) return prev
-          const first = createThread("새 채팅", "orchestrator")
-          setActiveThreadId(first.id)
-          return [first]
-        })
-      } catch (error) {
-        console.warn("[chat-sync] failed to load remote threads", error)
-      }
-    })()
-  }, [hydrated, authed, isAccountSession])
+    void loadRemoteThreads()
+  }, [hydrated, authed, isAccountSession, loadRemoteThreads])
 
   useEffect(() => {
     if (!hydrated || !authed || !isAccountSession) return
@@ -183,6 +188,31 @@ export default function HomePage() {
 
     return () => window.clearTimeout(timer)
   }, [threads, hydrated, authed, isAccountSession])
+
+  useEffect(() => {
+    if (!hydrated || !authed || !isAccountSession) return
+
+    const es = new EventSource("/api/chat/threads/stream")
+    threadsEventSourceRef.current = es
+
+    es.addEventListener("threads_updated", () => {
+      void loadRemoteThreads()
+    })
+
+    es.onerror = () => {
+      es.close()
+      if (threadsEventSourceRef.current === es) {
+        threadsEventSourceRef.current = null
+      }
+    }
+
+    return () => {
+      es.close()
+      if (threadsEventSourceRef.current === es) {
+        threadsEventSourceRef.current = null
+      }
+    }
+  }, [hydrated, authed, isAccountSession, loadRemoteThreads])
 
   useEffect(() => {
     void (async () => {
@@ -232,6 +262,8 @@ export default function HomePage() {
   useEffect(() => {
     if (!authed || !isAccountSession) {
       remoteHydratedRef.current = false
+      threadsEventSourceRef.current?.close()
+      threadsEventSourceRef.current = null
     }
   }, [authed, isAccountSession])
 

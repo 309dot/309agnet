@@ -7,6 +7,14 @@ function keyForUser(userId: string) {
   return `openclaw:threads:${userId}`
 }
 
+function versionKeyForUser(userId: string) {
+  return `openclaw:threads:ver:${userId}`
+}
+
+async function bumpThreadsVersion(kv: NonNullable<ReturnType<typeof resolveKvConfig>>, userId: string) {
+  await kvSetJson(kv, versionKeyForUser(userId), { version: Date.now() })
+}
+
 function normalizeThreads(input: unknown): Thread[] {
   return Array.isArray(input) ? (input as Thread[]) : []
 }
@@ -47,6 +55,7 @@ export async function PUT(req: Request) {
     const body = (await req.json().catch(() => null)) as { threads?: unknown } | unknown[] | null
     const threads = normalizeThreads(Array.isArray(body) ? body : body?.threads)
     await kvSetJson(kv, keyForUser(userId), threads)
+    await bumpThreadsVersion(kv, userId)
 
     return NextResponse.json({ ok: true })
   } catch (error) {

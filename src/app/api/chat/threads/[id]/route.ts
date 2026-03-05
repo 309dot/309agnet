@@ -7,6 +7,14 @@ function keyForUser(userId: string) {
   return `openclaw:threads:${userId}`
 }
 
+function versionKeyForUser(userId: string) {
+  return `openclaw:threads:ver:${userId}`
+}
+
+async function bumpThreadsVersion(kv: NonNullable<ReturnType<typeof resolveKvConfig>>, userId: string) {
+  await kvSetJson(kv, versionKeyForUser(userId), { version: Date.now() })
+}
+
 function normalizeThreads(input: unknown): Thread[] {
   return Array.isArray(input) ? (input as Thread[]) : []
 }
@@ -29,6 +37,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const current = normalizeThreads(await kvGetJson<unknown>(kv, keyForUser(userId)))
     const next = current.filter((thread) => thread.id !== id)
     await kvSetJson(kv, keyForUser(userId), next)
+    await bumpThreadsVersion(kv, userId)
 
     return NextResponse.json({ ok: true })
   } catch (error) {
