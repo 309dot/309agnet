@@ -51,7 +51,18 @@ export async function POST(req: Request) {
     })
   } catch (err) {
     const code = err instanceof Error ? err.message : "unknown_error"
-    const status = code === "unauthorized" ? 401 : code === "email_exists" || code.startsWith("invalid_") ? 400 : 500
-    return NextResponse.json({ ok: false, error: code }, { status })
+    const status =
+      code === "unauthorized"
+        ? 401
+        : code === "email_exists" || code.startsWith("invalid_")
+          ? 400
+          : code === "user_store_not_configured"
+            ? 503
+            : 500
+    const hint =
+      code === "user_store_not_configured"
+        ? "Production user issuance requires a persistent writable user store. OPENCLAW_AUTH_USERS_JSON is read-only bootstrap source."
+        : undefined
+    return NextResponse.json({ ok: false, error: code, hint }, { status })
   }
 }

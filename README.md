@@ -152,6 +152,10 @@ Backward compatibility is kept: the existing access-code login payload still wor
 
 `POST /api/admin/users` with header `x-admin-key` set to `OPENCLAW_ADMIN_ISSUER_KEY` (fallback: `OPENCLAW_APP_ACCESS_CODE`).
 
+> Production note: account issuance requires a **persistent writable user store**.
+> `OPENCLAW_AUTH_USERS_JSON` is bootstrap/read source only on Vercel runtime and is not writable at runtime.
+> If persistent storage is not configured, issuance fails closed with `user_store_not_configured` (HTTP 503).
+
 ```bash
 curl -X POST http://localhost:3000/api/admin/users \
   -H 'content-type: application/json' \

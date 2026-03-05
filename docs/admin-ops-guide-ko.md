@@ -15,6 +15,11 @@ API 기준:
 - `POST /api/admin/users`
 - Header: `x-admin-key: <OPENCLAW_ADMIN_ISSUER_KEY>`
 
+운영 주의(프로덕션):
+- 프로덕션에서 계정 발급은 **영구 쓰기 가능한 사용자 저장소**가 있어야 합니다.
+- `OPENCLAW_AUTH_USERS_JSON`은 부트스트랩/조회용 소스이며 런타임 쓰기 대상이 아닙니다.
+- 저장소가 미구성 상태면 발급 API는 `user_store_not_configured`(HTTP 503)으로 실패-종료됩니다.
+
 ## 2) 계정 비활성/활성
 
 관리자 다이얼로그 → **계정 목록 불러오기** 후 사용자별 상태를 전환합니다.

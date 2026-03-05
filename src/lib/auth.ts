@@ -179,6 +179,12 @@ export async function createUserByAdmin(
 ) {
   assertAdminKey(adminKey)
 
+  if (isVercelRuntime()) {
+    // Vercel runtime cannot persist user-store writes at runtime.
+    // OPENCLAW_AUTH_USERS_JSON is treated as bootstrap/read-only source.
+    throw new Error("user_store_not_configured")
+  }
+
   const email = normalizeEmail(input.email || "")
   const password = input.password || ""
   const name = input.name?.trim() || undefined

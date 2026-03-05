@@ -639,7 +639,9 @@ export default function HomePage() {
               ? "입력값을 확인해주세요."
               : data?.error === "email_exists"
                 ? "이미 존재하는 이메일입니다."
-                : "계정 발급에 실패했어요."
+                : data?.error?.includes("user_store_not_configured")
+                  ? "프로덕션 계정 저장소가 설정되지 않아 발급할 수 없습니다. OPENCLAW_AUTH_USERS_JSON 또는 영구 저장소 연동이 필요합니다."
+                  : "계정 발급에 실패했어요."
         setIssueResult({ type: "error", message: msg })
         return
       }
