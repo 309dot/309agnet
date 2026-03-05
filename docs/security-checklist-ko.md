@@ -11,6 +11,7 @@
 - `OPENCLAW_CHAT_TOKEN` (권장, 업스트림 정책에 따라 필수)
 - `OPENCLAW_CHAT_STREAM_TOKEN` (권장, 업스트림 정책에 따라 필수)
 - `OPENCLAW_UPSTREAM_CONTEXT_SECRET` **(필수 권장)**
+- `KV_REST_API_URL` + `KV_REST_API_TOKEN` (또는 alias: `OPENCLAW_KV_REST_API_URL` + `OPENCLAW_KV_REST_API_TOKEN`)
 
 > `OPENCLAW_UPSTREAM_CONTEXT_SECRET`는 `X-309-User-Context` 서명(`X-309-User-Signature`)에 사용됩니다.
 > 미설정 시 컨텍스트 서명 검증이 약화될 수 있습니다.
@@ -36,6 +37,29 @@ curl -sS https://<배포도메인>/api/health | jq
 - `.security.hasUpstreamContextSecret == true`
 - `.security.hasChatToken == true` (토큰 정책 사용 시)
 - `.security.hasStreamToken == true` (토큰 정책 사용 시)
+
+### 2-1) KV 인증/지속 저장 확인 (Vercel)
+
+```bash
+vercel env ls | grep -E 'KV_REST_API_URL|KV_REST_API_TOKEN|OPENCLAW_KV_REST_API_URL|OPENCLAW_KV_REST_API_TOKEN'
+```
+
+관리자 계정 발급 → 즉시 계정 로그인으로 KV 저장 경로를 검증합니다.
+
+```bash
+curl -sS -X POST https://<배포도메인>/api/admin/users \
+  -H 'content-type: application/json' \
+  -H 'x-admin-key: <OPENCLAW_ADMIN_ISSUER_KEY>' \
+  -d '{"email":"kv-check@example.com","password":"strongpass123","name":"KV Check","role":"member"}' | jq
+
+curl -sS -X POST https://<배포도메인>/api/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"email":"kv-check@example.com","password":"strongpass123","deviceName":"kv-smoke"}' | jq
+```
+
+기대 결과:
+- admin/users 응답 성공 (HTTP 200)
+- auth/login 응답 `ok: true`
 
 ### 3) 업스트림 컨텍스트 서명 동작 확인
 

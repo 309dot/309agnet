@@ -31,6 +31,9 @@ export type AuthUser = {
 const COOKIE_NAME = "oc_session"
 const SESSION_STORE_PATH = path.join(process.cwd(), ".openclaw", "auth-sessions.json")
 const USER_STORE_PATH = path.join(process.cwd(), ".openclaw", "auth-users.json")
+const KV_USER_STORE_KEY = "openclaw:auth:users"
+
+type KvConfig = { url: string; token: string }
 
 function isVercelRuntime() {
   return process.env.VERCEL === "1" || process.env.VERCEL_ENV !== undefined
@@ -64,6 +67,58 @@ function parseEnvUsers(): AuthUser[] {
   } catch {
     return []
   }
+}
+
+function resolveKvConfig(): KvConfig | null {
+  const url = process.env.KV_REST_API_URL || process.env.OPENCLAW_KV_REST_API_URL
+  const token = process.env.KV_REST_API_TOKEN || process.env.OPENCLAW_KV_REST_API_TOKEN
+  if (!url || !token) return null
+  return { url, token }
+}
+
+async function kvPipeline(config: KvConfig, command: unknown[]) {
+  const response = await fetch(`${config.url}/pipeline`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify([command]),
+    cache: "no-store",
+  })
+
+  if (!response.ok) {
+    throw new Error(`kv_http_${response.status}`)
+  }
+
+  const json = (await response.json()) as Array<{ result?: unknown; error?: string }>
+  if (!Array.isArray(json) || json.length === 0) {
+    throw new Error("kv_invalid_response")
+  }
+
+  const first = json[0]
+  if (first.error) {
+    throw new Error(`kv_${first.error}`)
+  }
+
+  return first.result
+}
+
+async function kvReadUsers(config: KvConfig): Promise<AuthUser[] | null> {
+  const result = await kvPipeline(config, ["GET", KV_USER_STORE_KEY])
+  if (result == null) return null
+  if (typeof result !== "string") return null
+
+  try {
+    const parsed = JSON.parse(result)
+    return Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+async function kvWriteUsers(config: KvConfig, users: AuthUser[]) {
+  await kvPipeline(config, ["SET", KV_USER_STORE_KEY, JSON.stringify(users)])
 }
 
 function hashPassword(password: string) {
@@ -142,20 +197,49 @@ async function writeSessionStore(list: AuthSession[]) {
 }
 
 async function readUserStore(): Promise<AuthUser[]> {
-  if (isVercelRuntime()) {
-    return parseEnvUsers()
+  const kv = resolveKvConfig()
+  if (kv) {
+    try {
+      const kvUsers = await kvReadUsers(kv)
+      if (Array.isArray(kvUsers)) return kvUsers
+
+      const envUsers = parseEnvUsers()
+      if (envUsers.length > 0) {
+        await kvWriteUsers(kv, envUsers)
+        return envUsers
+      }
+      return []
+    } catch {
+      if (isVercelRuntime()) {
+        return parseEnvUsers()
+      }
+    }
   }
-  try {
-    const raw = await fs.readFile(USER_STORE_PATH, "utf-8")
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
+
+  if (!isVercelRuntime()) {
+    try {
+      const raw = await fs.readFile(USER_STORE_PATH, "utf-8")
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      // fall through to env bootstrap fallback
+    }
   }
+
+  return parseEnvUsers()
 }
 
 async function writeUserStore(list: AuthUser[]) {
-  if (isVercelRuntime()) return
+  const kv = resolveKvConfig()
+  if (kv) {
+    await kvWriteUsers(kv, list)
+    return
+  }
+
+  if (isVercelRuntime()) {
+    throw new Error("user_store_not_configured")
+  }
+
   await fs.mkdir(path.dirname(USER_STORE_PATH), { recursive: true })
   await fs.writeFile(USER_STORE_PATH, JSON.stringify(list, null, 2), "utf-8")
 }
@@ -178,12 +262,6 @@ export async function createUserByAdmin(
   adminKey: string,
 ) {
   assertAdminKey(adminKey)
-
-  if (isVercelRuntime()) {
-    // Vercel runtime cannot persist user-store writes at runtime.
-    // OPENCLAW_AUTH_USERS_JSON is treated as bootstrap/read-only source.
-    throw new Error("user_store_not_configured")
-  }
 
   const email = normalizeEmail(input.email || "")
   const password = input.password || ""

@@ -152,9 +152,11 @@ Backward compatibility is kept: the existing access-code login payload still wor
 
 `POST /api/admin/users` with header `x-admin-key` set to `OPENCLAW_ADMIN_ISSUER_KEY` (fallback: `OPENCLAW_APP_ACCESS_CODE`).
 
-> Production note: account issuance requires a **persistent writable user store**.
-> `OPENCLAW_AUTH_USERS_JSON` is bootstrap/read source only on Vercel runtime and is not writable at runtime.
-> If persistent storage is not configured, issuance fails closed with `user_store_not_configured` (HTTP 503).
+> Production note: on Vercel, configure KV REST envs so admin issuance can write persistently:
+> - `KV_REST_API_URL` + `KV_REST_API_TOKEN` (or aliases `OPENCLAW_KV_REST_API_URL` + `OPENCLAW_KV_REST_API_TOKEN`)
+> - users are stored under key `openclaw:auth:users` (JSON array)
+> - `OPENCLAW_AUTH_USERS_JSON` remains a bootstrap fallback (used when KV key is empty)
+> If Vercel runtime has no writable store configured, issuance fails closed with `user_store_not_configured` (HTTP 503).
 
 ```bash
 curl -X POST http://localhost:3000/api/admin/users \
@@ -166,6 +168,24 @@ curl -X POST http://localhost:3000/api/admin/users \
     "name": "Member One",
     "role": "member"
   }'
+```
+
+### Vercel KV setup quick check
+
+```bash
+# 1) Ensure KV envs are set on Vercel project
+vercel env ls | grep -E 'KV_REST_API_URL|KV_REST_API_TOKEN|OPENCLAW_KV_REST_API_URL|OPENCLAW_KV_REST_API_TOKEN'
+
+# 2) Issue account in deployed env (should return 200)
+curl -X POST https://<deploy-domain>/api/admin/users \
+  -H 'content-type: application/json' \
+  -H 'x-admin-key: <OPENCLAW_ADMIN_ISSUER_KEY>' \
+  -d '{"email":"kv-check@example.com","password":"strongpass123","name":"KV Check","role":"member"}'
+
+# 3) Login with just-issued account (should return ok=true)
+curl -X POST https://<deploy-domain>/api/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"email":"kv-check@example.com","password":"strongpass123","deviceName":"kv-smoke"}'
 ```
 
 ### Account login payload
