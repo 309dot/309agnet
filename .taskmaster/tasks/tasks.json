@@ -275,10 +275,25 @@
       "dependencies": [
         "19"
       ],
+      "status": "done",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-05T08:23:20.352Z"
+    },
+    {
+      "id": "21",
+      "title": "계정 저장소 영구화 구현(Vercel KV 기반)",
+      "description": "프로덕션 계정 발급/수정/조회가 실제 영구 저장되도록 Vercel KV(REST) 저장소 연동",
+      "details": "auth user store를 KV 우선으로 읽기/쓰기하고 로컬 파일/ENV는 fallback 유지. 발급→로그인→비활성/재활성/세션종료 e2e 검증",
+      "testStrategy": "프로덕션에서 계정 발급 후 즉시 로그인 성공, 목록/상태변경 반영 확인",
+      "priority": "high",
+      "dependencies": [
+        "20"
+      ],
       "status": "in-progress",
       "assignee": "coder",
       "subtasks": [],
-      "updatedAt": "2026-03-05T08:18:51.343Z"
+      "updatedAt": "2026-03-05T08:23:20.352Z"
     }
   ],
   "metadata": {
