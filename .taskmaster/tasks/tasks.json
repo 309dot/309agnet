@@ -363,10 +363,10 @@
       "testStrategy": "매트릭스 산출물 검토 + 기존 이슈 재현 가능 여부 체크",
       "priority": "high",
       "dependencies": [],
-      "status": "in-progress",
+      "status": "done",
       "assignee": "researcher",
       "subtasks": [],
-      "updatedAt": "2026-03-06T01:52:34Z"
+      "updatedAt": "2026-03-06T01:53:57Z"
     },
     {
       "id": "27",
@@ -378,10 +378,10 @@
       "dependencies": [
         "26"
       ],
-      "status": "pending",
+      "status": "in-progress",
       "assignee": "coder",
       "subtasks": [],
-      "updatedAt": "2026-03-06T01:52:06Z"
+      "updatedAt": "2026-03-06T01:53:57Z"
     },
     {
       "id": "28",
@@ -401,9 +401,9 @@
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-06T01:52:34Z",
+    "lastModified": "2026-03-06T01:53:57Z",
     "taskCount": 28,
-    "completedCount": 22,
+    "completedCount": 23,
     "tags": [
       "master"
     ]
