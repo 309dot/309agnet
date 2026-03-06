@@ -354,13 +354,56 @@
       "assignee": "coder",
       "subtasks": [],
       "updatedAt": "2026-03-05T09:58:05.435Z"
+    },
+    {
+      "id": "26",
+      "title": "품질/안정성 개선 기획: 회귀 방지 테스트 매트릭스 수립",
+      "description": "최근 계정/세션/채팅 동기화 영역 기준 핵심 회귀 시나리오를 테스트 매트릭스로 정리",
+      "details": "로그인/다중디바이스 세션/채팅 동기화/SSE/권한 경계 기준으로 smoke+regression 케이스를 정의하고 우선순위 부여",
+      "testStrategy": "매트릭스 산출물 검토 + 기존 이슈 재현 가능 여부 체크",
+      "priority": "high",
+      "dependencies": [],
+      "status": "pending",
+      "assignee": "researcher",
+      "subtasks": [],
+      "updatedAt": "2026-03-06T01:52:06Z"
+    },
+    {
+      "id": "27",
+      "title": "품질/안정성 개선 구현: 세션/스레드 API 계약 테스트 추가",
+      "description": "핵심 API(/api/auth/sessions, /api/chat/threads*) 계약 테스트를 추가해 회귀를 조기 탐지",
+      "details": "정상/경계/오류 케이스를 포함한 contract test를 작성하고 CI에서 최소 smoke 세트를 항상 실행",
+      "testStrategy": "테스트 실패 유도 후 검출 확인 + 정상 경로 green 확인",
+      "priority": "high",
+      "dependencies": [
+        "26"
+      ],
+      "status": "pending",
+      "assignee": "coder",
+      "subtasks": [],
+      "updatedAt": "2026-03-06T01:52:06Z"
+    },
+    {
+      "id": "28",
+      "title": "품질/안정성 검증: 배포 전 안정성 게이트 체크리스트 적용",
+      "description": "배포 전 필수 게이트(lint/build/tests/health/security flags)를 체크리스트로 표준화",
+      "details": "게이트 실패 시 배포 차단 기준과 롤백 트리거를 문서화하고 실제 최근 변경분에 대해 시범 적용",
+      "testStrategy": "체크리스트 기반 dry-run 검증 1회 수행",
+      "priority": "high",
+      "dependencies": [
+        "27"
+      ],
+      "status": "pending",
+      "assignee": "verifier",
+      "subtasks": [],
+      "updatedAt": "2026-03-06T01:52:06Z"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-04T09:43:36.448Z",
-    "taskCount": 12,
-    "completedCount": 12,
+    "lastModified": "2026-03-06T01:52:06Z",
+    "taskCount": 28,
+    "completedCount": 22,
     "tags": [
       "master"
     ]
