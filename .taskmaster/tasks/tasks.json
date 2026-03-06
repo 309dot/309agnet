@@ -378,10 +378,10 @@
       "dependencies": [
         "26"
       ],
-      "status": "in-progress",
+      "status": "done",
       "assignee": "coder",
       "subtasks": [],
-      "updatedAt": "2026-03-06T01:53:57Z"
+      "updatedAt": "2026-03-06T01:58:37Z"
     },
     {
       "id": "28",
@@ -393,17 +393,17 @@
       "dependencies": [
         "27"
       ],
-      "status": "pending",
+      "status": "in-progress",
       "assignee": "verifier",
       "subtasks": [],
-      "updatedAt": "2026-03-06T01:52:06Z"
+      "updatedAt": "2026-03-06T01:58:37Z"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-06T01:53:57Z",
+    "lastModified": "2026-03-06T01:58:37Z",
     "taskCount": 28,
-    "completedCount": 23,
+    "completedCount": 24,
     "tags": [
       "master"
     ]
