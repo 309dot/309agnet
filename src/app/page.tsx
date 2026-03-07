@@ -24,7 +24,7 @@ import { isLikelyLocalGatewayRefused, resolveGatewayUrl } from "@/lib/gateway-ur
 import { cancelOpenClawJob, createOpenClawJob, streamOpenClawJobStatus } from "@/lib/openclaw-jobs"
 import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/lib/store"
 
-type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
+type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured" | "unreachable"
 type LoginMode = "account" | "legacy"
 type AuthSession = {
   id: string
@@ -658,9 +658,8 @@ export default function HomePage() {
               ? "OpenClaw 서버가 오류를 반환했습니다. 잠시 후 다시 시도하거나 서버 상태를 확인해주세요."
               : "오류가 발생했습니다. 잠시 후 다시 시도해주세요."
       if (isConfigError) setConnectionMode("misconfigured")
+      if (isUpstreamUnreachable) setConnectionMode("unreachable")
 
-      if (openclawRequestMode && !isCancelled) {
-              }
 
       if (!isCancelled) {
         const withAssistant = addMessage(userAdded, "assistant", friendly)

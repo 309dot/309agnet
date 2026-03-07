@@ -3,13 +3,14 @@
 import { AlertCircle, Bot, Menu, Play, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
+type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured" | "unreachable"
 
 const modeLabel: Record<ConnectionMode, string> = {
   unknown: "상태 확인 중",
   connected: "OpenClaw 연결됨",
   mock: "Mock 모드",
   misconfigured: "설정 필요",
+  unreachable: "OpenClaw 연결 불가",
 }
 
 export function TopBar({
