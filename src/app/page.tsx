@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { sendFailureReport } from "@/lib/failure-report"
 import { streamFromOpenClawGateway } from "@/lib/openclaw"
 import { isLikelyLocalGatewayRefused, resolveGatewayUrl } from "@/lib/gateway-url"
 import { cancelOpenClawJob, createOpenClawJob, streamOpenClawJobStatus } from "@/lib/openclaw-jobs"
@@ -610,6 +611,16 @@ export default function HomePage() {
         } catch {
           // fallback 실패 시 일반 오류 처리로 진행
         }
+      }
+
+      if (!isCancelled) {
+        void sendFailureReport({
+          source: openclawRequestMode ? "job" : "chat_stream",
+          mode: pmMode ? "pm" : openclawRequestMode ? "agent" : "normal",
+          model: selectedModel,
+          errorMessage: message,
+          threadId: userAdded.id,
+        })
       }
 
       const friendly = isCancelled
