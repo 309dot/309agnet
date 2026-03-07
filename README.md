@@ -53,6 +53,8 @@ For real OpenClaw replies in Vercel, set env vars:
 - `OPENCLAW_CHAT_STREAM_URL` (SSE endpoint)
 - `OPENCLAW_CHAT_STREAM_TOKEN` (optional bearer token)
 - `OPENCLAW_UPSTREAM_CONTEXT_SECRET` (**recommended**; used to sign per-session context headers)
+- `NEXT_PUBLIC_GATEWAY_URL` (optional, browser-side OpenClaw relay URL for non-local clients; prefer `wss://`)
+- `NEXT_PUBLIC_LOCAL_GATEWAY_URL` (optional local override, defaults to `ws://127.0.0.1:18789` for localhost/dev only)
 
 > If you temporarily set non-empty placeholder values for `OPENCLAW_CHAT_TOKEN` / `OPENCLAW_CHAT_STREAM_TOKEN` to satisfy fail-closed health checks, rotate them to real upstream tokens as soon as they are issued.
 
@@ -75,6 +77,10 @@ No password/hash or other sensitive auth material is forwarded upstream in these
 
 Optional local/demo fallback:
 - `OPENCLAW_ALLOW_MOCK=true` (enables mock responses when upstream is missing)
+
+Client gateway URL resolution policy:
+- `localhost` / `127.0.0.1` / `::1` / `*.local`: local gateway URL is allowed (`NEXT_PUBLIC_LOCAL_GATEWAY_URL`, default `ws://127.0.0.1:18789`)
+- non-local host (e.g. `app.309designlab.com`): only `NEXT_PUBLIC_GATEWAY_URL` is used; if missing, browser-side gateway connect should be treated as unavailable (non-fatal)
 
 Default behavior in production is now **fail-closed** (returns 503 when upstream is not configured), so users don’t mistake mock text for real OpenClaw output.
 

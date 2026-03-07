@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { streamFromOpenClawGateway } from "@/lib/openclaw"
+import { isLikelyLocalGatewayRefused, resolveGatewayUrl } from "@/lib/gateway-url"
 import { cancelOpenClawJob, createOpenClawJob, retryOpenClawJob, streamOpenClawJobStatus } from "@/lib/openclaw-jobs"
 import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/lib/store"
 
@@ -222,14 +223,15 @@ export default function HomePage() {
     void (async () => {
       try {
         const res = await fetch("/api/auth/me", { cache: "no-store" })
-        if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; session?: { userId?: string; authType?: LoginMode } } | null
+        if (!res.ok || !data?.ok || !data?.session) {
           setAuthed(false)
           setIsAccountSession(false)
           return
         }
-        const data = (await res.json().catch(() => null)) as { session?: { userId?: string; authType?: LoginMode } } | null
+
         setAuthed(true)
-        setIsAccountSession(Boolean(data?.session?.userId && data?.session?.authType === "account"))
+        setIsAccountSession(Boolean(data.session.userId && data.session.authType === "account"))
       } catch {
         setAuthed(false)
         setIsAccountSession(false)
@@ -242,6 +244,14 @@ export default function HomePage() {
     update()
     window.addEventListener("resize", update)
     return () => window.removeEventListener("resize", update)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const gatewayUrl = resolveGatewayUrl(window.location.hostname)
+    if (!gatewayUrl) {
+      setConnectionMode((current) => (current === "connected" ? current : "misconfigured"))
+    }
   }, [])
 
   useEffect(() => {
@@ -502,7 +512,11 @@ export default function HomePage() {
       const message = String(error)
       const isConfigError = message.includes("503") || message.includes("upstream_not_configured")
       const isCancelled = message.includes("job_cancelled") || message.includes("cancelled")
-      const isUpstreamUnreachable = message.includes("upstream_unreachable") || message.includes("ECONNREFUSED") || message.includes("ENOTFOUND")
+      const isUpstreamUnreachable =
+        message.includes("upstream_unreachable") ||
+        message.includes("ECONNREFUSED") ||
+        message.includes("ENOTFOUND") ||
+        isLikelyLocalGatewayRefused(message)
       const isUpstreamError = message.includes("upstream_error:")
       const isJobPipelineError =
         message.includes("job_stream_error") ||
@@ -554,7 +568,7 @@ export default function HomePage() {
             ? "OpenClaw 연동 설정이 아직 안 됐습니다. 관리자에게 OPENCLAW_CHAT_URL 설정을 요청해주세요."
             : "OpenClaw 연동 설정이 아직 안 됐습니다. 관리자에게 OPENCLAW_CHAT_STREAM_URL 설정을 요청해주세요."
           : isUpstreamUnreachable
-            ? "OpenClaw 서버에 연결할 수 없습니다. OPENCLAW_CHAT_URL/STREAM_URL이 외부(Vercel)에서 접근 가능한 주소인지 확인해주세요."
+            ? "OpenClaw 연결을 사용할 수 없습니다. 로컬(127.0.0.1) 주소가 원격/iPad 환경에서 사용 중인지, 또는 OPENCLAW_CHAT_URL/STREAM_URL이 외부에서 접근 가능한 주소인지 확인해주세요."
             : isUpstreamError
               ? "OpenClaw 서버가 오류를 반환했습니다. 잠시 후 다시 시도하거나 서버 상태를 확인해주세요."
               : "오류가 발생했습니다. 잠시 후 다시 시도해주세요."
