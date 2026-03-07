@@ -1,16 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Bot, MoreVertical, PlayCircle, Sparkles } from "lucide-react"
-import { ChatComposer } from "@/components/chat-composer"
+import { ChatComposer, InputMode } from "@/components/chat-composer"
 import { MessageList } from "@/components/message-list"
 import { RunLog, RunPanel } from "@/components/run-panel"
 import { SidebarThreads } from "@/components/sidebar-threads"
 import { TopBar } from "@/components/top-bar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -22,7 +19,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { streamFromOpenClawGateway } from "@/lib/openclaw"
 import { isLikelyLocalGatewayRefused, resolveGatewayUrl } from "@/lib/gateway-url"
-import { cancelOpenClawJob, createOpenClawJob, retryOpenClawJob, streamOpenClawJobStatus } from "@/lib/openclaw-jobs"
+import { cancelOpenClawJob, createOpenClawJob, streamOpenClawJobStatus } from "@/lib/openclaw-jobs"
 import { addMessage, createThread, loadThreads, saveThreads, Thread } from "@/lib/store"
 
 type ConnectionMode = "unknown" | "connected" | "mock" | "misconfigured"
@@ -56,8 +53,7 @@ const PM_MODEL = "ollama/qwen3.5:27b"
 const PM_FALLBACK_MODEL = "ollama/qwen3.5:35b"
 const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
 const REMEMBERED_DEVICES_KEY = "oc_remembered_devices_v1"
-const OPENCLAW_MODE_KEY = "oc_openclaw_mode_v1"
-const PM_MODE_KEY = "oc_pm_mode_v1"
+const INPUT_MODE_KEY = "oc_input_mode_v1"
 const RESPONSE_STYLE_PREFIX = `응답 형식 지침(데스크탑/모바일 공통 고정):
 - 반드시 아래 섹션 순서로 작성:
   1) 요약
@@ -100,10 +96,8 @@ export default function HomePage() {
   const [devicesOpen, setDevicesOpen] = useState(false)
   const [sessions, setSessions] = useState<AuthSession[]>([])
   const [rememberedDevices, setRememberedDevices] = useState<RememberedDevice[]>([])
-  const [openclawRequestMode, setOpenclawRequestMode] = useState(false)
-  const [pmMode, setPmMode] = useState(false)
+  const [inputMode, setInputMode] = useState<InputMode>("normal")
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
-  const [lastFailedJobId, setLastFailedJobId] = useState<string | null>(null)
   const [issuePanelOpen, setIssuePanelOpen] = useState(false)
   const [adminKey, setAdminKey] = useState("")
   const [issueEmail, setIssueEmail] = useState("")
@@ -121,7 +115,6 @@ export default function HomePage() {
   const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(false)
   const [adminUserMessageById, setAdminUserMessageById] = useState<Record<string, { type: "success" | "error"; text: string }>>({})
   const [adminListMessage, setAdminListMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
   const remoteHydratedRef = useRef(false)
@@ -273,22 +266,16 @@ export default function HomePage() {
       }
     }
 
-    const openclawModeRaw = localStorage.getItem(OPENCLAW_MODE_KEY)
-    if (openclawModeRaw === "1") setOpenclawRequestMode(true)
-
-    const pmModeRaw = localStorage.getItem(PM_MODE_KEY)
-    if (pmModeRaw === "1") setPmMode(true)
+    const savedInputMode = localStorage.getItem(INPUT_MODE_KEY)
+    if (savedInputMode === "normal" || savedInputMode === "agent" || savedInputMode === "pm") {
+      setInputMode(savedInputMode)
+    }
   }, [])
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    localStorage.setItem(OPENCLAW_MODE_KEY, openclawRequestMode ? "1" : "0")
-  }, [openclawRequestMode])
-
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    localStorage.setItem(PM_MODE_KEY, pmMode ? "1" : "0")
-  }, [pmMode])
+    localStorage.setItem(INPUT_MODE_KEY, inputMode)
+  }, [inputMode])
 
   useEffect(() => {
     activeJobIdRef.current = activeJobId
@@ -333,6 +320,8 @@ export default function HomePage() {
   }, [threads])
 
   const activeThread = useMemo(() => threads.find((t) => t.id === activeThreadId) ?? null, [threads, activeThreadId])
+  const openclawRequestMode = inputMode === "agent"
+  const pmMode = inputMode === "pm"
   const selectedModel = pmMode ? PM_MODEL : FIXED_MODEL
 
   const agentOptions = useMemo(() => {
@@ -412,8 +401,7 @@ export default function HomePage() {
   const onSend = async (text: string) => {
     if (isSending) return
     setIsSending(true)
-    setLastFailedJobId(null)
-    setRunLogs([
+        setRunLogs([
       { step: "plan", status: "done", text: "요청을 분석했습니다." },
       { step: "agent", status: "running", text: "게이트웨이에 요청 전송 중..." },
       { step: "compose", status: "queued", text: "응답 생성 대기" },
@@ -488,8 +476,7 @@ export default function HomePage() {
         if (finalStatus.status === "done") {
           const withAssistant = addMessage(userAdded, "assistant", finalStatus.result ?? "")
           setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
-          setLastFailedJobId(null)
-          setActiveJobId(null)
+                    setActiveJobId(null)
           return
         }
 
@@ -614,8 +601,7 @@ export default function HomePage() {
           const withAssistant = addMessage(userAdded, "assistant", textOut)
           setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
           setStreamingDraft("")
-          setLastFailedJobId(null)
-          setRunLogs([
+                    setRunLogs([
             { step: "plan", status: "done", text: "요청을 분석했습니다." },
             { step: "agent", status: "done", text: "스트리밍 자동 전환 성공" },
             { step: "compose", status: "done", text: "응답 생성 완료" },
@@ -640,8 +626,7 @@ export default function HomePage() {
       if (isConfigError) setConnectionMode("misconfigured")
 
       if (openclawRequestMode && !isCancelled) {
-        setLastFailedJobId(activeJobIdRef.current)
-      }
+              }
 
       if (!isCancelled) {
         const withAssistant = addMessage(userAdded, "assistant", friendly)
@@ -657,80 +642,6 @@ export default function HomePage() {
       abortRef.current = null
       setActiveJobId(null)
       setIsSending(false)
-    }
-  }
-
-  const onRetryLastJob = async () => {
-    if (!lastFailedJobId || isSending) return
-    setIsSending(true)
-    setRunLogs([
-      { step: "plan", status: "done", text: "실패한 Job 재시도 준비" },
-      { step: "agent", status: "running", text: "Job 재시도 요청 중..." },
-      { step: "compose", status: "queued", text: "결과 대기" },
-    ])
-
-    try {
-      const retried = await retryOpenClawJob(lastFailedJobId)
-      setActiveJobId(retried.jobId)
-
-      const finalStatus = await streamOpenClawJobStatus(retried.jobId, (status) => {
-        setRunLogs([
-          { step: "plan", status: "done", text: "실패한 Job 재시도 중" },
-          {
-            step: "agent",
-            status: status.status === "done" ? "done" : status.status === "error" || status.status === "cancelled" ? "error" : "running",
-            text: `현재 상태: ${status.status}`,
-          },
-          {
-            step: "compose",
-            status: status.status === "done" ? "done" : "running",
-            text: status.status === "done" ? "응답 수신 완료" : "응답 반영 대기",
-          },
-        ])
-      })
-
-      if (finalStatus.status !== "done") {
-        throw new Error(finalStatus.error ?? `job_${finalStatus.status}`)
-      }
-
-      if (activeThread) {
-        const withAssistant = addMessage(activeThread, "assistant", finalStatus.result ?? "")
-        setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
-      }
-
-      setLastFailedJobId(null)
-    } catch (error) {
-      setRunLogs([
-        { step: "plan", status: "done", text: "재시도 요청 전송" },
-        { step: "agent", status: "error", text: String(error) },
-        { step: "compose", status: "queued", text: "재시도 실패" },
-      ])
-    } finally {
-      setActiveJobId(null)
-      setIsSending(false)
-    }
-  }
-
-  const exportThreads = () => {
-    const blob = new Blob([JSON.stringify(threads, null, 2)], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `309agnet-chats-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const importThreads = async (file: File | null) => {
-    if (!file) return
-    try {
-      const text = await file.text()
-      const parsed = JSON.parse(text) as Thread[]
-      if (!Array.isArray(parsed) || parsed.length === 0) return
-      setThreads(parsed)
-      setActiveThreadId(parsed[0]?.id ?? null)
-    } catch {
-      // ignore invalid files in MVP
     }
   }
 
@@ -1008,6 +919,7 @@ export default function HomePage() {
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar
           model={selectedModel}
+          onRunPanel={() => setRunOpen(true)}
           onOpenDevices={() => {
             setDevicesOpen(true)
             void fetchSessions()
@@ -1016,77 +928,10 @@ export default function HomePage() {
           connectionMode={connectionMode}
         />
 
-        <div className="flex flex-col gap-2 border-b px-3 py-2 text-xs text-muted-foreground md:px-4">
-          <div className="truncate">
-            <kbd className="rounded border px-1">⌘/Ctrl + K</kbd> 채팅 검색 · <kbd className="rounded border px-1">⌘/Ctrl + N</kbd> 새 채팅
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setRunOpen(true)}>
-              <PlayCircle className="size-3.5" />
-              Run 패널
-            </Button>
-
-            <Button
-              variant={openclawRequestMode ? "default" : "outline"}
-              size="sm"
-              className="h-8 gap-1.5"
-              onClick={() => setOpenclawRequestMode((v) => !v)}
-            >
-              <Bot className="size-3.5" />
-              OpenClaw {openclawRequestMode ? "ON" : "OFF"}
-            </Button>
-
-            <Button variant={pmMode ? "default" : "outline"} size="sm" className="h-8 gap-1.5" onClick={() => setPmMode((v) => !v)}>
-              <Sparkles className="size-3.5" />
-              PM Local {pmMode ? "ON" : "OFF"}
-            </Button>
-
-            {pmMode ? (
-              <Badge variant="secondary" className="h-8 px-2 text-[11px]">
-                현재 에이전트: pm-local
-              </Badge>
-            ) : null}
-
-            {isSending ? (
-              <Button variant="destructive" size="sm" onClick={onStop}>
-                중단
-              </Button>
-            ) : null}
-            {lastFailedJobId && !isSending ? (
-              <Button variant="secondary" size="sm" onClick={() => void onRetryLastJob()}>
-                마지막 Job 재시도
-              </Button>
-            ) : null}
-
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => setIssuePanelOpen(true)}>
-              계정 발급
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-8 w-8" aria-label="도구 메뉴">
-                  <MoreVertical className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={exportThreads}>내보내기</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>불러오기</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/json"
-              className="hidden"
-              onChange={(e) => importThreads(e.target.files?.[0] ?? null)}
-            />
-          </div>
-        </div>
-
         <section className="min-h-0 flex-1 overflow-hidden pb-4">
           <MessageList messages={activeThread?.messages ?? []} streamingDraft={streamingDraft} />
         </section>
-        <ChatComposer onSend={onSend} disabled={isSending} openclawMode={openclawRequestMode} pmMode={pmMode} />
+        <ChatComposer onSend={onSend} disabled={isSending} mode={inputMode} onModeChange={setInputMode} onStop={onStop} />
       </section>
 
       <RunPanel open={runOpen} onOpenChange={setRunOpen} logs={runLogs} />
@@ -1275,6 +1120,11 @@ export default function HomePage() {
           <DialogHeader>
             <DialogTitle>디바이스 관리</DialogTitle>
           </DialogHeader>
+          <div className="mb-2 flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIssuePanelOpen(true)}>
+              계정 발급
+            </Button>
+          </div>
           <div className="max-h-80 space-y-2 overflow-auto">
             {sessions.length === 0 ? <p className="text-sm text-muted-foreground">활성 디바이스가 없습니다.</p> : null}
             {sessions.map((s) => (

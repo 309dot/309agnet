@@ -126,7 +126,7 @@ export function MessageList({ messages, streamingDraft }: { messages: Message[];
         <Button
           type="button"
           size="icon"
-          className="absolute bottom-2 right-4 z-20 h-10 w-10 rounded-full shadow-lg md:bottom-0"
+          className="absolute bottom-2 left-1/2 z-20 h-10 w-10 -translate-x-1/2 rounded-full shadow-lg md:bottom-0"
           onClick={scrollToLatest}
           aria-label="최신 메시지로 이동"
           title="최신 메시지로 이동"
