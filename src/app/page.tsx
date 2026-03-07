@@ -7,6 +7,7 @@ import { MessageList } from "@/components/message-list"
 import { RunLog, RunPanel } from "@/components/run-panel"
 import { SidebarThreads } from "@/components/sidebar-threads"
 import { TopBar } from "@/components/top-bar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -52,6 +53,7 @@ type HealthSecurity = {
 }
 const FIXED_MODEL = "gpt-5.3-codex"
 const PM_MODEL = "ollama/qwen3.5:27b"
+const PM_FALLBACK_MODEL = "ollama/qwen3.5:35b"
 const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
 const REMEMBERED_DEVICES_KEY = "oc_remembered_devices_v1"
 const RESPONSE_STYLE_PREFIX = `응답 형식 지침(데스크탑/모바일 공통 고정):
@@ -482,22 +484,44 @@ export default function HomePage() {
       const controller = new AbortController()
       abortRef.current = controller
 
-      const textOut = await streamFromOpenClawGateway(
-        {
-          threadId: userAdded.id,
-          message: `${RESPONSE_STYLE_PREFIX}${text}`,
-          model: selectedModel,
-        },
-        (partial) => {
-          setStreamingDraft(partial)
-          setRunLogs([
-            { step: "plan", status: "done", text: "요청을 분석했습니다." },
-            { step: "agent", status: "running", text: "게이트웨이 스트리밍 수신 중..." },
-            { step: "compose", status: "running", text: "응답 작성 중" },
-          ])
-        },
-        controller.signal,
-      )
+      const streamWithModelFallback = async () => {
+        const modelsToTry = pmMode ? [PM_MODEL, PM_FALLBACK_MODEL] : [selectedModel]
+        let lastError: unknown = null
+
+        for (let i = 0; i < modelsToTry.length; i += 1) {
+          const model = modelsToTry[i]
+          const isFallback = i > 0
+          try {
+            return await streamFromOpenClawGateway(
+              {
+                threadId: userAdded.id,
+                message: `${RESPONSE_STYLE_PREFIX}${text}`,
+                model,
+              },
+              (partial) => {
+                setStreamingDraft(partial)
+                setRunLogs([
+                  { step: "plan", status: "done", text: "요청을 분석했습니다." },
+                  {
+                    step: "agent",
+                    status: "running",
+                    text: isFallback ? `PM fallback 모델(${model})로 재시도 중...` : "게이트웨이 스트리밍 수신 중...",
+                  },
+                  { step: "compose", status: "running", text: "응답 작성 중" },
+                ])
+              },
+              controller.signal,
+            )
+          } catch (error) {
+            lastError = error
+            if (!pmMode || i === modelsToTry.length - 1) throw error
+          }
+        }
+
+        throw lastError ?? new Error("stream_failed")
+      }
+
+      const textOut = await streamWithModelFallback()
 
       const withAssistant = addMessage(userAdded, "assistant", textOut)
       setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
@@ -529,22 +553,44 @@ export default function HomePage() {
           const controller = new AbortController()
           abortRef.current = controller
 
-          const textOut = await streamFromOpenClawGateway(
-            {
-              threadId: userAdded.id,
-              message: `${RESPONSE_STYLE_PREFIX}${text}`,
-              model: selectedModel,
-            },
-            (partial) => {
-              setStreamingDraft(partial)
-              setRunLogs([
-                { step: "plan", status: "done", text: "요청을 분석했습니다." },
-                { step: "agent", status: "running", text: "Job 파이프라인 실패로 스트리밍 경로로 자동 전환" },
-                { step: "compose", status: "running", text: "응답 작성 중" },
-              ])
-            },
-            controller.signal,
-          )
+          const modelsToTry = pmMode ? [PM_MODEL, PM_FALLBACK_MODEL] : [selectedModel]
+          let textOut = ""
+          let streamOk = false
+
+          for (let i = 0; i < modelsToTry.length; i += 1) {
+            const model = modelsToTry[i]
+            const isFallback = i > 0
+            try {
+              textOut = await streamFromOpenClawGateway(
+                {
+                  threadId: userAdded.id,
+                  message: `${RESPONSE_STYLE_PREFIX}${text}`,
+                  model,
+                },
+                (partial) => {
+                  setStreamingDraft(partial)
+                  setRunLogs([
+                    { step: "plan", status: "done", text: "요청을 분석했습니다." },
+                    {
+                      step: "agent",
+                      status: "running",
+                      text: isFallback
+                        ? `Job 실패 후 PM fallback 모델(${model})로 자동 전환`
+                        : "Job 파이프라인 실패로 스트리밍 경로로 자동 전환",
+                    },
+                    { step: "compose", status: "running", text: "응답 작성 중" },
+                  ])
+                },
+                controller.signal,
+              )
+              streamOk = true
+              break
+            } catch {
+              if (!pmMode || i === modelsToTry.length - 1) throw new Error("pm_fallback_stream_failed")
+            }
+          }
+
+          if (!streamOk) throw new Error("stream_failed")
 
           const withAssistant = addMessage(userAdded, "assistant", textOut)
           setThreads((prev) => prev.map((t) => (t.id === withAssistant.id ? withAssistant : t)))
@@ -976,6 +1022,12 @@ export default function HomePage() {
               <Sparkles className="size-3.5" />
               PM Local {pmMode ? "ON" : "OFF"}
             </Button>
+
+            {pmMode ? (
+              <Badge variant="secondary" className="h-8 px-2 text-[11px]">
+                현재 에이전트: pm-local
+              </Badge>
+            ) : null}
 
             {isSending ? (
               <Button variant="destructive" size="sm" onClick={onStop}>
