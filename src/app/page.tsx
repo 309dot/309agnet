@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Copy } from "lucide-react"
 import { ChatComposer, InputMode } from "@/components/chat-composer"
 import { MessageList } from "@/components/message-list"
 import { RunLog, RunPanel } from "@/components/run-panel"
@@ -17,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { sendFailureReport } from "@/lib/failure-report"
+import { buildFailureReport, sendFailureReport, type FailureReportInput } from "@/lib/failure-report"
 import { streamFromOpenClawGateway } from "@/lib/openclaw"
 import { isLikelyLocalGatewayRefused, resolveGatewayUrl } from "@/lib/gateway-url"
 import { cancelOpenClawJob, createOpenClawJob, streamOpenClawJobStatus } from "@/lib/openclaw-jobs"
@@ -116,6 +117,7 @@ export default function HomePage() {
   const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(false)
   const [adminUserMessageById, setAdminUserMessageById] = useState<Record<string, { type: "success" | "error"; text: string }>>({})
   const [adminListMessage, setAdminListMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [failureToast, setFailureToast] = useState<{ reason: string; copyText: string } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
   const remoteHydratedRef = useRef(false)
@@ -281,6 +283,12 @@ export default function HomePage() {
   useEffect(() => {
     activeJobIdRef.current = activeJobId
   }, [activeJobId])
+
+  useEffect(() => {
+    if (!failureToast) return
+    const id = window.setTimeout(() => setFailureToast(null), 6000)
+    return () => window.clearTimeout(id)
+  }, [failureToast])
 
   useEffect(() => {
     if (!authed || !isAccountSession) {
@@ -614,13 +622,28 @@ export default function HomePage() {
       }
 
       if (!isCancelled) {
-        void sendFailureReport({
+        const reportInput: FailureReportInput = {
           source: openclawRequestMode ? "job" : "chat_stream",
           mode: pmMode ? "pm" : openclawRequestMode ? "agent" : "normal",
           model: selectedModel,
           errorMessage: message,
           threadId: userAdded.id,
-        })
+        }
+
+        const report = buildFailureReport(reportInput)
+        const copyText = [
+          report.brief,
+          `category=${report.category}`,
+          `source=${report.details.source}`,
+          `mode=${report.details.mode}`,
+          `model=${report.details.model}`,
+          `threadId=${report.details.threadId ?? "-"}`,
+          `time=${report.details.occurredAt}`,
+          `error=${report.details.errorMessage}`,
+        ].join("\n")
+
+        setFailureToast({ reason: report.brief, copyText })
+        void sendFailureReport(reportInput)
       }
 
       const friendly = isCancelled
@@ -1173,6 +1196,29 @@ export default function HomePage() {
           <Button variant="outline" onClick={() => void logout()}>내 기기 로그아웃</Button>
         </DialogContent>
       </Dialog>
+
+      {failureToast ? (
+        <div className="fixed bottom-4 right-4 z-50 flex max-w-[min(92vw,420px)] items-center gap-2 rounded-md border bg-background/95 px-3 py-2 text-sm shadow-lg backdrop-blur">
+          <p className="line-clamp-2 flex-1 text-foreground">{failureToast.reason}</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            aria-label="원인 복사"
+            title="원인 복사"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(failureToast.copyText)
+              } catch {
+                // ignore clipboard errors
+              }
+            }}
+          >
+            <Copy className="size-3.5" />
+          </Button>
+        </div>
+      ) : null}
     </main>
   )
 }
