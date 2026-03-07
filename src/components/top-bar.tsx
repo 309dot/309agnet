@@ -33,13 +33,12 @@ export function TopBar({
         </Button>
         <h1 className="truncate text-sm font-semibold tracking-tight">309agnet</h1>
         <span className="hidden text-xs text-muted-foreground sm:inline-flex">{model}</span>
-        <span className="inline-flex items-center gap-1.5 text-xs">
+        <span className="inline-flex items-center text-xs" title={modeLabel[connectionMode]}>
           {connectionMode === "connected" ? (
             <Bot className="size-3.5 text-emerald-500" />
           ) : (
             <AlertCircle className="size-3.5 text-rose-500" />
           )}
-          <span className={connectionMode === "connected" ? "text-emerald-600" : "text-rose-600"}>{modeLabel[connectionMode]}</span>
         </span>
       </div>
       <div className="flex items-center gap-2">
