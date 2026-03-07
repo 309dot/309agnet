@@ -117,7 +117,7 @@ export default function HomePage() {
   const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(false)
   const [adminUserMessageById, setAdminUserMessageById] = useState<Record<string, { type: "success" | "error"; text: string }>>({})
   const [adminListMessage, setAdminListMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
-  const [failureToast, setFailureToast] = useState<{ reason: string; copyText: string } | null>(null)
+  const [failureToast, setFailureToast] = useState<{ reason: string; copyText: string; retryText?: string } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
   const remoteHydratedRef = useRef(false)
@@ -642,7 +642,7 @@ export default function HomePage() {
           `error=${report.details.errorMessage}`,
         ].join("\n")
 
-        setFailureToast({ reason: report.brief, copyText })
+        setFailureToast({ reason: report.brief, copyText, retryText: text })
         void sendFailureReport(reportInput)
       }
 
@@ -1197,25 +1197,43 @@ export default function HomePage() {
       </Dialog>
 
       {failureToast ? (
-        <div className="fixed bottom-4 right-4 z-50 flex max-w-[min(92vw,420px)] items-center gap-2 rounded-md border bg-background/95 px-3 py-2 text-sm shadow-lg backdrop-blur">
+        <div className="fixed bottom-4 right-4 z-50 flex max-w-[min(92vw,460px)] items-center gap-2 rounded-md border bg-background/95 px-3 py-2 text-sm shadow-lg backdrop-blur">
           <p className="line-clamp-2 flex-1 text-foreground">{failureToast.reason}</p>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            aria-label="원인 복사"
-            title="원인 복사"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(failureToast.copyText)
-              } catch {
-                // ignore clipboard errors
-              }
-            }}
-          >
-            <Copy className="size-3.5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {failureToast.retryText ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                disabled={isSending}
+                onClick={() => {
+                  const retryText = failureToast.retryText
+                  setFailureToast(null)
+                  if (retryText) void onSend(retryText)
+                }}
+              >
+                재시도
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="원인 복사"
+              title="원인 복사"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(failureToast.copyText)
+                } catch {
+                  // ignore clipboard errors
+                }
+              }}
+            >
+              <Copy className="size-3.5" />
+            </Button>
+          </div>
         </div>
       ) : null}
     </main>
