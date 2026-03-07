@@ -1,6 +1,6 @@
 "use client"
 
-import { Menu, Play, Shield } from "lucide-react"
+import { Menu, Shield } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
@@ -15,13 +15,11 @@ const modeLabel: Record<ConnectionMode, string> = {
 
 export function TopBar({
   model,
-  onRunPanel,
   onOpenDevices,
   onToggleSidebar,
   connectionMode,
 }: {
   model: string
-  onRunPanel: () => void
   onOpenDevices: () => void
   onToggleSidebar: () => void
   connectionMode: ConnectionMode
@@ -46,9 +44,6 @@ export function TopBar({
       <div className="flex items-center gap-2">
         <Button variant="outline" size="icon" onClick={onOpenDevices} aria-label="디바이스 관리">
           <Shield className="size-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={onRunPanel} aria-label="Run 패널">
-          <Play className="size-4" />
         </Button>
       </div>
     </header>

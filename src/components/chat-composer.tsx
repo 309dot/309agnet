@@ -1,6 +1,5 @@
 "use client"
 
-import { Bot, Sparkles } from "lucide-react"
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -9,16 +8,12 @@ export function ChatComposer({
   onSend,
   disabled = false,
   openclawMode = false,
-  onToggleOpenclawMode,
   pmMode = false,
-  onTogglePmMode,
 }: {
   onSend: (text: string) => void
   disabled?: boolean
   openclawMode?: boolean
-  onToggleOpenclawMode?: () => void
   pmMode?: boolean
-  onTogglePmMode?: () => void
 }) {
   const [text, setText] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -43,32 +38,6 @@ export function ChatComposer({
   return (
     <div className="sticky bottom-0 z-20 bg-gradient-to-b from-background/0 from-0% via-background/0 via-55% to-background to-100% p-3">
       <div className="mx-auto flex max-w-3xl items-end gap-2">
-        <Button
-          type="button"
-          variant={openclawMode ? "default" : "outline"}
-          size="icon"
-          onClick={onToggleOpenclawMode}
-          disabled={disabled}
-          className="h-10 w-10 shrink-0 rounded-full"
-          title={openclawMode ? "openclaw 요청 ON" : "openclaw 요청 OFF"}
-          aria-label="openclaw 요청 토글"
-        >
-          <Bot className="size-4" />
-        </Button>
-
-        <Button
-          type="button"
-          variant={pmMode ? "default" : "outline"}
-          size="icon"
-          onClick={onTogglePmMode}
-          disabled={disabled}
-          className="h-10 w-10 shrink-0 rounded-full"
-          title={pmMode ? "PM 모드 ON" : "PM 모드 OFF"}
-          aria-label="PM 모드 토글"
-        >
-          <Sparkles className="size-4" />
-        </Button>
-
         <Textarea
           ref={textareaRef}
           rows={1}

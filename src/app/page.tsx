@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { MoreVertical } from "lucide-react"
+import { Bot, MoreVertical, PlayCircle, Sparkles } from "lucide-react"
 import { ChatComposer } from "@/components/chat-composer"
 import { MessageList } from "@/components/message-list"
 import { RunLog, RunPanel } from "@/components/run-panel"
@@ -51,7 +51,7 @@ type HealthSecurity = {
   hasStreamToken?: boolean
 }
 const FIXED_MODEL = "gpt-5.3-codex"
-const PM_MODEL = "anthropic/claude-opus-4-6"
+const PM_MODEL = "ollama/qwen3.5:27b"
 const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
 const REMEMBERED_DEVICES_KEY = "oc_remembered_devices_v1"
 const RESPONSE_STYLE_PREFIX = `응답 형식 지침(데스크탑/모바일 공통 고정):
@@ -943,7 +943,6 @@ export default function HomePage() {
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar
           model={selectedModel}
-          onRunPanel={() => setRunOpen(true)}
           onOpenDevices={() => {
             setDevicesOpen(true)
             void fetchSessions()
@@ -952,11 +951,32 @@ export default function HomePage() {
           connectionMode={connectionMode}
         />
 
-        <div className="flex items-center justify-between border-b px-3 py-2 text-xs text-muted-foreground md:px-4">
+        <div className="flex flex-col gap-2 border-b px-3 py-2 text-xs text-muted-foreground md:px-4">
           <div className="truncate">
             <kbd className="rounded border px-1">⌘/Ctrl + K</kbd> 채팅 검색 · <kbd className="rounded border px-1">⌘/Ctrl + N</kbd> 새 채팅
           </div>
-          <div className="ml-2 flex items-center gap-2">
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setRunOpen(true)}>
+              <PlayCircle className="size-3.5" />
+              Run 패널
+            </Button>
+
+            <Button
+              variant={openclawRequestMode ? "default" : "outline"}
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={() => setOpenclawRequestMode((v) => !v)}
+            >
+              <Bot className="size-3.5" />
+              OpenClaw {openclawRequestMode ? "ON" : "OFF"}
+            </Button>
+
+            <Button variant={pmMode ? "default" : "outline"} size="sm" className="h-8 gap-1.5" onClick={() => setPmMode((v) => !v)}>
+              <Sparkles className="size-3.5" />
+              PM Local {pmMode ? "ON" : "OFF"}
+            </Button>
+
             {isSending ? (
               <Button variant="destructive" size="sm" onClick={onStop}>
                 중단
@@ -967,6 +987,7 @@ export default function HomePage() {
                 마지막 Job 재시도
               </Button>
             ) : null}
+
             <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => setIssuePanelOpen(true)}>
               계정 발급
             </Button>
@@ -994,14 +1015,7 @@ export default function HomePage() {
         <section className="min-h-0 flex-1 overflow-hidden pb-4">
           <MessageList messages={activeThread?.messages ?? []} streamingDraft={streamingDraft} />
         </section>
-        <ChatComposer
-          onSend={onSend}
-          disabled={isSending}
-          openclawMode={openclawRequestMode}
-          onToggleOpenclawMode={() => setOpenclawRequestMode((v) => !v)}
-          pmMode={pmMode}
-          onTogglePmMode={() => setPmMode((v) => !v)}
-        />
+        <ChatComposer onSend={onSend} disabled={isSending} openclawMode={openclawRequestMode} pmMode={pmMode} />
       </section>
 
       <RunPanel open={runOpen} onOpenChange={setRunOpen} logs={runLogs} />
