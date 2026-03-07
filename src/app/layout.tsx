@@ -6,6 +6,11 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 export const metadata: Metadata = {
   title: "309agnet",
   description: "ChatGPT-style MVP with local persistence",
+  icons: {
+    icon: "/bot-favicon.svg",
+    shortcut: "/bot-favicon.svg",
+    apple: "/bot-favicon.svg",
+  },
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
