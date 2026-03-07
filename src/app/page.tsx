@@ -56,6 +56,8 @@ const PM_MODEL = "ollama/qwen3.5:27b"
 const PM_FALLBACK_MODEL = "ollama/qwen3.5:35b"
 const LAST_DEVICE_NAME_KEY = "oc_last_device_name_v1"
 const REMEMBERED_DEVICES_KEY = "oc_remembered_devices_v1"
+const OPENCLAW_MODE_KEY = "oc_openclaw_mode_v1"
+const PM_MODE_KEY = "oc_pm_mode_v1"
 const RESPONSE_STYLE_PREFIX = `응답 형식 지침(데스크탑/모바일 공통 고정):
 - 반드시 아래 섹션 순서로 작성:
   1) 요약
@@ -262,14 +264,31 @@ export default function HomePage() {
     if (lastName) setDeviceName(lastName)
 
     const raw = localStorage.getItem(REMEMBERED_DEVICES_KEY)
-    if (!raw) return
-    try {
-      const parsed = JSON.parse(raw) as RememberedDevice[]
-      if (Array.isArray(parsed)) setRememberedDevices(parsed)
-    } catch {
-      // ignore
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as RememberedDevice[]
+        if (Array.isArray(parsed)) setRememberedDevices(parsed)
+      } catch {
+        // ignore
+      }
     }
+
+    const openclawModeRaw = localStorage.getItem(OPENCLAW_MODE_KEY)
+    if (openclawModeRaw === "1") setOpenclawRequestMode(true)
+
+    const pmModeRaw = localStorage.getItem(PM_MODE_KEY)
+    if (pmModeRaw === "1") setPmMode(true)
   }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    localStorage.setItem(OPENCLAW_MODE_KEY, openclawRequestMode ? "1" : "0")
+  }, [openclawRequestMode])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    localStorage.setItem(PM_MODE_KEY, pmMode ? "1" : "0")
+  }, [pmMode])
 
   useEffect(() => {
     activeJobIdRef.current = activeJobId
