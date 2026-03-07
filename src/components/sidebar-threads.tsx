@@ -23,7 +23,7 @@ export function SidebarThreads({
     <aside className="flex h-full w-72 flex-col border-r bg-muted/20">
       <div className="flex items-center justify-between p-3">
         <p className="text-sm font-medium">채팅</p>
-        <Button variant="outline" size="icon" onClick={onCreate} aria-label="채팅 생성">
+        <Button variant="ghost" size="icon" onClick={onCreate} aria-label="채팅 생성">
           <Plus className="size-4" />
         </Button>
       </div>

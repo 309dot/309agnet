@@ -58,7 +58,7 @@ export function ChatComposer({
             <DropdownMenuTrigger asChild>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 className="absolute left-2 top-1/2 z-10 h-7 w-7 -translate-y-1/2 rounded-full"
                 aria-label="입력 모드 선택"

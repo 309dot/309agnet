@@ -1102,7 +1102,7 @@ export default function HomePage() {
             <div className="space-y-2 rounded-md border p-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-medium">계정 목록 불러오기</p>
-                <Button variant="outline" size="sm" onClick={() => void loadAdminUsers()} disabled={isLoadingAdminUsers}>
+                <Button variant="ghost" size="sm" onClick={() => void loadAdminUsers()} disabled={isLoadingAdminUsers}>
                   {isLoadingAdminUsers ? "불러오는 중..." : "불러오기"}
                 </Button>
               </div>
@@ -1123,7 +1123,7 @@ export default function HomePage() {
                     </div>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">상태: {u.active ? "활성" : "비활성"}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void toggleAdminUserActive(u)}>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void toggleAdminUserActive(u)}>
                         {u.active ? "비활성화" : "활성화"}
                       </Button>
                       <Button variant="destructive" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void revokeAllUserSessions(u)}>
@@ -1155,7 +1155,7 @@ export default function HomePage() {
             <DialogTitle>디바이스 관리</DialogTitle>
           </DialogHeader>
           <div className="mb-2 flex items-center justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIssuePanelOpen(true)}>
+            <Button variant="ghost" size="sm" onClick={() => setIssuePanelOpen(true)}>
               계정 발급
             </Button>
           </div>
@@ -1193,7 +1193,7 @@ export default function HomePage() {
               </div>
             ) : null}
           </div>
-          <Button variant="outline" onClick={() => void logout()}>내 기기 로그아웃</Button>
+          <Button variant="ghost" onClick={() => void logout()}>내 기기 로그아웃</Button>
         </DialogContent>
       </Dialog>
 
@@ -1202,7 +1202,7 @@ export default function HomePage() {
           <p className="line-clamp-2 flex-1 text-foreground">{failureToast.reason}</p>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="icon"
             className="h-7 w-7"
             aria-label="원인 복사"
