@@ -1,15 +1,30 @@
 import http from "node:http"
 import { execFile } from "node:child_process"
+import { existsSync } from "node:fs"
 
 const PORT = Number(process.env.BRIDGE_PORT || 18790)
+const OPENCLAW_BIN =
+  process.env.OPENCLAW_BIN ||
+  ["/opt/homebrew/bin/openclaw", "/usr/local/bin/openclaw", "openclaw"].find((p) => p === "openclaw" || existsSync(p)) ||
+  "openclaw"
+const BRIDGE_PATH = [
+  "/opt/homebrew/bin",
+  "/opt/homebrew/opt/node@22/bin",
+  "/usr/local/bin",
+  process.env.PATH || "/usr/bin:/bin:/usr/sbin:/sbin",
+].join(":")
 
 function runAgent({ threadId, message }) {
   const sessionId = `web_${String(threadId || "default").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80)}`
   return new Promise((resolve, reject) => {
     execFile(
-      "openclaw",
+      OPENCLAW_BIN,
       ["agent", "--session-id", sessionId, "--message", String(message || ""), "--json"],
-      { maxBuffer: 1024 * 1024 * 8, timeout: 1000 * 120 },
+      {
+        maxBuffer: 1024 * 1024 * 8,
+        timeout: 1000 * 120,
+        env: { ...process.env, PATH: BRIDGE_PATH },
+      },
       (err, stdout, stderr) => {
         if (err) {
           reject(new Error(stderr?.trim() || err.message))
