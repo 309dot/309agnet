@@ -463,17 +463,56 @@
         "testStrategy": "manual verification",
         "priority": "high",
         "dependencies": [],
+        "status": "done",
+        "assignee": "orchestrator",
+        "subtasks": [],
+        "updatedAt": "2026-03-08T11:12:45.926Z"
+      },
+      {
+        "id": "34",
+        "title": "send trigger phrase from chat and confirm hook execution",
+        "description": "send trigger phrase from chat and confirm hook execution",
+        "details": "auto-created by brain/kanban_adapter fallback",
+        "testStrategy": "manual verification",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "assignee": "orchestrator",
+        "subtasks": [],
+        "updatedAt": "2026-03-08T11:12:47.518Z"
+      },
+      {
+        "id": "35",
+        "title": "verify pm-autoflow artifact and kanban payload generation",
+        "description": "verify pm-autoflow artifact and kanban payload generation",
+        "details": "auto-created by brain/kanban_adapter fallback",
+        "testStrategy": "manual verification",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "assignee": "orchestrator",
+        "subtasks": [],
+        "updatedAt": "2026-03-08T11:12:49.088Z"
+      },
+      {
+        "id": "36",
+        "title": "if stable, mark native continuation hook done",
+        "description": "if stable, mark native continuation hook done",
+        "details": "auto-created by brain/kanban_adapter fallback",
+        "testStrategy": "manual verification",
+        "priority": "high",
+        "dependencies": [],
         "status": "in-progress",
         "assignee": "orchestrator",
         "subtasks": [],
-        "updatedAt": "2026-03-08T11:10:31.109Z"
+        "updatedAt": "2026-03-08T11:12:50.671Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-03-08T11:10:31.109Z",
-      "taskCount": 33,
-      "completedCount": 28,
+      "lastModified": "2026-03-08T11:12:50.671Z",
+      "taskCount": 36,
+      "completedCount": 31,
       "tags": [
         "master"
       ]
