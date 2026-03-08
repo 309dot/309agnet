@@ -415,7 +415,7 @@
         "updatedAt": "2026-03-07T23:40:42.333Z"
       },
       {
-        "id": 30,
+        "id": "30",
         "title": "배포 검증: 연결 실패 시나리오 실환경 E2E 점검",
         "description": "app.309designlab.com에서 upstream 차단/복구 시 상태표시, 토스트 재시도, 진단복사 동작 최종 검증",
         "details": "실서비스에서 /api/health checks.reason/latency 확인 및 사용자 체감 흐름(무반응 제거) 확인",
@@ -428,13 +428,52 @@
         "assignee": "verifier",
         "subtasks": [],
         "updatedAt": "2026-03-07T23:40:50.930Z"
+      },
+      {
+        "id": "31",
+        "title": "send trigger phrase from chat and confirm hook execution",
+        "description": "send trigger phrase from chat and confirm hook execution",
+        "details": "auto-created by brain/kanban_adapter fallback",
+        "testStrategy": "manual verification",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "assignee": "orchestrator",
+        "subtasks": [],
+        "updatedAt": "2026-03-08T11:10:27.953Z"
+      },
+      {
+        "id": "32",
+        "title": "verify pm-autoflow artifact and kanban payload generation",
+        "description": "verify pm-autoflow artifact and kanban payload generation",
+        "details": "auto-created by brain/kanban_adapter fallback",
+        "testStrategy": "manual verification",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "assignee": "orchestrator",
+        "subtasks": [],
+        "updatedAt": "2026-03-08T11:10:29.536Z"
+      },
+      {
+        "id": "33",
+        "title": "if stable, mark native continuation hook done",
+        "description": "if stable, mark native continuation hook done",
+        "details": "auto-created by brain/kanban_adapter fallback",
+        "testStrategy": "manual verification",
+        "priority": "high",
+        "dependencies": [],
+        "status": "in-progress",
+        "assignee": "orchestrator",
+        "subtasks": [],
+        "updatedAt": "2026-03-08T11:10:31.109Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-03-07T23:40:50.930Z",
-      "taskCount": 30,
-      "completedCount": 26,
+      "lastModified": "2026-03-08T11:10:31.109Z",
+      "taskCount": 33,
+      "completedCount": 28,
       "tags": [
         "master"
       ]
