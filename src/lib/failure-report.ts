@@ -34,9 +34,19 @@ function classify(errorMessage: string): FailureCategory {
   const msg = errorMessage.toLowerCase()
   if (msg.includes("abort") || msg.includes("cancel")) return "cancelled"
   if (msg.includes("401") || msg.includes("403") || msg.includes("unauthorized") || msg.includes("forbidden")) return "auth"
-  if (msg.includes("400") || msg.includes("validation") || msg.includes("payload")) return "request_validation"
   if (msg.includes("job_") || msg.includes("stream_timeout") || msg.includes("job_pipeline")) return "job_pipeline"
-  if (msg.includes("upstream_error") || msg.includes("503") || msg.includes("500")) return "upstream"
+
+  const has5xx = /\b5\d{2}\b/.test(msg)
+  if (
+    msg.includes("upstream_error") ||
+    has5xx ||
+    msg.includes("bad gateway") ||
+    msg.includes("cloudflare")
+  ) {
+    return "upstream"
+  }
+
+  if (msg.includes("400") || msg.includes("validation") || msg.includes("payload")) return "request_validation"
   if (msg.includes("econnrefused") || msg.includes("enotfound") || msg.includes("upstream_unreachable") || msg.includes("127.0.0.1:18789")) return "gateway_connect"
   return "unknown"
 }

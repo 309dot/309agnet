@@ -556,7 +556,12 @@ export default function HomePage() {
         message.includes("ECONNREFUSED") ||
         message.includes("ENOTFOUND") ||
         isLikelyLocalGatewayRefused(message)
-      const isUpstreamError = message.includes("upstream_error:")
+      const has5xx = /\b5\d{2}\b/.test(message)
+      const isUpstreamError =
+        message.includes("upstream_error:") ||
+        has5xx ||
+        message.toLowerCase().includes("bad gateway") ||
+        message.toLowerCase().includes("cloudflare")
       const isJobPipelineError =
         message.includes("job_stream_error") ||
         message.includes("job_status_failed") ||
